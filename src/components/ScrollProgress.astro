@@ -1,0 +1,40 @@
+---
+---
+
+<div class="scroll-progress" aria-hidden="true">
+	<div class="bar" id="scroll-bar"></div>
+</div>
+
+<script>
+	const bar = document.getElementById('scroll-bar');
+	function update() {
+		const max = document.documentElement.scrollHeight - window.innerHeight;
+		const p = max > 0 ? window.scrollY / max : 0;
+		if (bar) bar.style.transform = `scaleX(${Math.min(1, Math.max(0, p))})`;
+	}
+	update();
+	window.addEventListener('scroll', update, { passive: true });
+	window.addEventListener('resize', update);
+</script>
+
+<style>
+	.scroll-progress {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 2px;
+		z-index: 70;
+		background: transparent;
+		pointer-events: none;
+	}
+
+	.bar {
+		height: 100%;
+		width: 100%;
+		transform-origin: left center;
+		transform: scaleX(0);
+		background: var(--color-accent);
+		will-change: transform;
+	}
+</style>

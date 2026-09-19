@@ -1,0 +1,107 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/fraunces/wght.css';
+@import '@fontsource-variable/fraunces/wght-italic.css';
+@import '@fontsource-variable/source-serif-4/wght.css';
+@import '@fontsource-variable/source-serif-4/wght-italic.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+	--font-display: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
+	--font-body: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+	--color-ink: #12100e;
+	--color-paper: #f3eee6;
+	--color-paper-deep: #ebe4d8;
+	--color-muted: #6b645a;
+	--color-rule: rgba(18, 16, 14, 0.14);
+	--color-accent: #9b1d2e;
+	--color-accent-hover: #7a1523;
+	--color-nav: rgba(243, 238, 230, 0.82);
+	--color-spotlight: rgba(155, 29, 46, 0.12);
+}
+
+html[data-theme='dark'] {
+	--color-ink: #f3eee6;
+	--color-paper: #12100e;
+	--color-paper-deep: #1a1714;
+	--color-muted: #a39a8c;
+	--color-rule: rgba(243, 238, 230, 0.14);
+	--color-accent: #e85a6b;
+	--color-accent-hover: #ff7a88;
+	--color-nav: rgba(18, 16, 14, 0.86);
+	--color-spotlight: rgba(232, 90, 107, 0.14);
+}
+
+@layer base {
+	html {
+		scroll-behavior: smooth;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	body {
+		font-family: var(--font-body);
+		background: var(--color-paper);
+		color: var(--color-ink);
+		min-height: 100vh;
+		letter-spacing: -0.01em;
+		overflow-x: clip;
+	}
+
+	::selection {
+		background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+	}
+
+	a {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 3px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+			scroll-behavior: auto !important;
+		}
+	}
+}
+
+@utility container-page {
+	width: 100%;
+	max-width: 68rem;
+	margin-inline: auto;
+	padding-inline: max(clamp(1.25rem, 4vw, 3.25rem), env(safe-area-inset-left))
+		max(clamp(1.25rem, 4vw, 3.25rem), env(safe-area-inset-right));
+}
+
+@utility measure {
+	max-width: 65ch;
+}
+
+@utility ink-link {
+	color: var(--color-accent);
+	background-image: linear-gradient(currentColor, currentColor);
+	background-position: 0 100%;
+	background-repeat: no-repeat;
+	background-size: 0% 1.5px;
+	transition:
+		background-size 280ms ease,
+		color 160ms ease;
+
+	&:hover {
+		background-size: 100% 1.5px;
+		color: var(--color-accent-hover);
+	}
+}

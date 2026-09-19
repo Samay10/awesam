@@ -1,0 +1,142 @@
+---
+---
+
+<div class="cursor" id="aw-cursor" aria-hidden="true">
+	<span class="ring"></span>
+	<span class="dot"></span>
+</div>
+<div class="spotlight" id="aw-spotlight" aria-hidden="true"></div>
+
+<script>
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	const fine = window.matchMedia('(pointer: fine)').matches;
+	const cursor = document.getElementById('aw-cursor');
+	const spotlight = document.getElementById('aw-spotlight');
+	if (!reduce && fine && cursor && spotlight) {
+		document.documentElement.classList.add('has-custom-cursor');
+		let x = 0;
+		let y = 0;
+		let sx = 0;
+		let sy = 0;
+
+		window.addEventListener(
+			'pointermove',
+			(event) => {
+				x = event.clientX;
+				y = event.clientY;
+				spotlight.style.setProperty('--x', `${x}px`);
+				spotlight.style.setProperty('--y', `${y}px`);
+			},
+			{ passive: true },
+		);
+
+		const tick = () => {
+			sx += (x - sx) * 0.18;
+			sy += (y - sy) * 0.18;
+			cursor.style.transform = `translate(${sx}px, ${sy}px)`;
+			requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+
+		const setHover = (on: boolean) => cursor.classList.toggle('is-hover', on);
+		document.querySelectorAll('a, button, [data-magnetic]').forEach((el) => {
+			el.addEventListener('pointerenter', () => setHover(true));
+			el.addEventListener('pointerleave', () => setHover(false));
+		});
+
+		document.querySelectorAll('[data-magnetic]').forEach((el) => {
+			const node = el as HTMLElement;
+			node.addEventListener('pointermove', (event) => {
+				const rect = node.getBoundingClientRect();
+				const dx = event.clientX - (rect.left + rect.width / 2);
+				const dy = event.clientY - (rect.top + rect.height / 2);
+				node.style.transform = `translate(${dx * 0.18}px, ${dy * 0.22}px)`;
+			});
+			node.addEventListener('pointerleave', () => {
+				node.style.transform = '';
+			});
+		});
+	}
+</script>
+
+<style is:global>
+	.has-custom-cursor,
+	.has-custom-cursor * {
+		cursor: none !important;
+	}
+
+	.cursor {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 0;
+		height: 0;
+		z-index: 80;
+		pointer-events: none;
+		display: none;
+	}
+
+	.has-custom-cursor .cursor {
+		display: block;
+	}
+
+	.cursor .ring,
+	.cursor .dot {
+		position: absolute;
+		border-radius: 999px;
+		transform: translate(-50%, -50%);
+	}
+
+	.cursor .ring {
+		width: 2.1rem;
+		height: 2.1rem;
+		border: 1px solid color-mix(in srgb, var(--color-ink) 45%, transparent);
+		transition:
+			width 180ms ease,
+			height 180ms ease,
+			border-color 180ms ease,
+			background 180ms ease;
+	}
+
+	.cursor .dot {
+		width: 0.28rem;
+		height: 0.28rem;
+		background: var(--color-accent);
+	}
+
+	.cursor.is-hover .ring {
+		width: 3rem;
+		height: 3rem;
+		border-color: var(--color-accent);
+		background: var(--color-spotlight);
+	}
+
+	.spotlight {
+		display: none;
+		position: fixed;
+		inset: 0;
+		z-index: 55;
+		pointer-events: none;
+		background: radial-gradient(
+			420px circle at var(--x, 50%) var(--y, 50%),
+			var(--color-spotlight),
+			transparent 55%
+		);
+		opacity: 0.9;
+		mix-blend-mode: multiply;
+	}
+
+	.has-custom-cursor .spotlight {
+		display: block;
+	}
+
+	html[data-theme='dark'] .spotlight {
+		mix-blend-mode: screen;
+	}
+
+	[data-magnetic] {
+		display: inline-block;
+		transition: transform 180ms ease;
+		will-change: transform;
+	}
+</style>

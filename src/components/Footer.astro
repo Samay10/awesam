@@ -1,0 +1,78 @@
+---
+import { site } from '../data/site';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="footer">
+	<div class="container-page">
+		<div class="rule" aria-hidden="true"></div>
+		<div class="row">
+			<p class="colophon">
+				<span class="mark">{site.name}</span>
+				<span class="sep">·</span>
+				A small press by {site.author}
+			</p>
+			<div class="links">
+				<a class="ink-link" href={site.portfolio}>Portfolio</a>
+				<a class="ink-link" href={site.github} target="_blank" rel="noreferrer">GitHub</a>
+				<a class="ink-link" href={`mailto:${site.email}`}>Email</a>
+			</div>
+		</div>
+		<p class="copy">© {year} {site.author}</p>
+	</div>
+</footer>
+
+<style>
+	.footer {
+		padding: 3rem 0 calc(2.5rem + env(safe-area-inset-bottom));
+	}
+
+	.rule {
+		height: 1px;
+		background: var(--color-rule);
+		margin-bottom: 1.5rem;
+	}
+
+	.row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.colophon {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		letter-spacing: 0.04em;
+		color: var(--color-muted);
+	}
+
+	.mark {
+		color: var(--color-ink);
+		font-weight: 500;
+	}
+
+	.sep {
+		margin-inline: 0.45rem;
+		opacity: 0.5;
+	}
+
+	.links {
+		display: flex;
+		gap: 1.15rem;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+
+	.copy {
+		margin: 1.25rem 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--color-muted);
+	}
+</style>

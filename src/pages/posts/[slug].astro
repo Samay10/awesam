@@ -1,0 +1,162 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { site } from '../../data/site';
+
+export async function getStaticPaths() {
+	const posts = await getCollection('posts');
+	return posts
+		.filter((post) => !post.data.draft)
+		.map((post) => ({
+			params: { slug: post.id },
+			props: { post },
+		}));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const base = import.meta.env.BASE_URL;
+const date = post.data.pubDate.toLocaleDateString('en-US', {
+	year: 'numeric',
+	month: 'long',
+	day: 'numeric',
+});
+---
+
+<BaseLayout title={`${post.data.title} · ${site.name}`} description={post.data.description}>
+	<article class="post">
+		<div class="container-page">
+			<a class="back ink-link reveal" href={`${base}archive/`}>← Archive</a>
+
+			<header class="head reveal">
+				<p class="meta">
+					<time datetime={post.data.pubDate.toISOString()}>{date}</time>
+					{
+						post.data.tags.length > 0 && (
+							<>
+								<span class="sep">·</span>
+								<span>{post.data.tags.join(' · ')}</span>
+							</>
+						)
+					}
+				</p>
+				<h1>{post.data.title}</h1>
+				<p class="dek">{post.data.description}</p>
+			</header>
+
+			<div class="body measure reveal">
+				<Content />
+			</div>
+		</div>
+	</article>
+</BaseLayout>
+
+<style>
+	.post {
+		padding: clamp(2rem, 6vw, 3.5rem) 0 clamp(4rem, 8vw, 6rem);
+	}
+
+	.back {
+		display: inline-block;
+		margin-bottom: 1.75rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.head {
+		max-width: 42rem;
+		margin-bottom: 2.5rem;
+		padding-bottom: 1.75rem;
+		border-bottom: 1px solid var(--color-rule);
+	}
+
+	.meta {
+		margin: 0 0 1rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-muted);
+	}
+
+	.sep {
+		margin-inline: 0.45rem;
+		opacity: 0.55;
+	}
+
+	h1 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: clamp(2.2rem, 6vw, 3.6rem);
+		font-weight: 650;
+		letter-spacing: -0.035em;
+		line-height: 1.05;
+	}
+
+	.dek {
+		margin: 1rem 0 0;
+		font-size: 1.15rem;
+		line-height: 1.55;
+		color: var(--color-muted);
+		font-style: italic;
+		font-family: var(--font-display);
+	}
+
+	.body :global(p) {
+		margin: 0 0 1.25rem;
+		font-size: 1.125rem;
+		line-height: 1.75;
+	}
+
+	.body :global(p:first-of-type)::first-letter {
+		float: left;
+		font-family: var(--font-display);
+		font-size: 3.6rem;
+		line-height: 0.8;
+		padding: 0.15rem 0.55rem 0 0;
+		font-weight: 650;
+		color: var(--color-accent);
+	}
+
+	.body :global(a) {
+		color: var(--color-accent);
+		text-decoration: underline;
+		text-underline-offset: 0.18em;
+	}
+
+	.body :global(blockquote) {
+		margin: 1.75rem 0;
+		padding: 0.25rem 0 0.25rem 1.15rem;
+		border-left: 2px solid var(--color-accent);
+		font-family: var(--font-display);
+		font-style: italic;
+		font-size: 1.25rem;
+		line-height: 1.5;
+		color: var(--color-muted);
+	}
+
+	.body :global(h2),
+	.body :global(h3) {
+		font-family: var(--font-display);
+		letter-spacing: -0.02em;
+		margin: 2rem 0 0.75rem;
+	}
+
+	.body :global(ul),
+	.body :global(ol) {
+		margin: 0 0 1.25rem;
+		padding-left: 1.25rem;
+		font-size: 1.05rem;
+		line-height: 1.7;
+	}
+
+	.body :global(code) {
+		font-family: var(--font-mono);
+		font-size: 0.88em;
+		background: var(--color-paper-deep);
+		padding: 0.1em 0.35em;
+		border-radius: 0.2rem;
+	}
+</style>

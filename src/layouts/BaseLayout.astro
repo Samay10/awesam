@@ -1,0 +1,120 @@
+---
+import '../styles/global.css';
+import { site } from '../data/site';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import Grain from '../components/Grain.astro';
+import Cursor from '../components/Cursor.astro';
+import ScrollProgress from '../components/ScrollProgress.astro';
+
+interface Props {
+	title?: string;
+	description?: string;
+}
+
+const { title = `${site.name} · Journal`, description = site.tagline } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="generator" content={Astro.generator} />
+		<meta name="description" content={description} />
+		<meta name="theme-color" content="#f3eee6" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#12100e" media="(prefers-color-scheme: dark)" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content={canonical} />
+		<link rel="canonical" href={canonical} />
+		<link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}favicon.svg`} />
+		<title>{title}</title>
+		<script is:inline>
+			(function () {
+				try {
+					const stored = localStorage.getItem('theme');
+					const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+					const theme =
+						stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
+					document.documentElement.setAttribute('data-theme', theme);
+				} catch (_) {
+					document.documentElement.setAttribute('data-theme', 'light');
+				}
+			})();
+		</script>
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<Grain />
+		<ScrollProgress />
+		<Cursor />
+		<Header />
+		<main id="main">
+			<slot />
+		</main>
+		<Footer />
+	</body>
+</html>
+
+<style is:global>
+	.skip {
+		position: absolute;
+		left: -9999px;
+		top: 0;
+		z-index: 100;
+		padding: 0.75rem 1rem;
+		background: var(--color-ink);
+		color: var(--color-paper);
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+	}
+
+	.skip:focus {
+		left: 1rem;
+		top: 1rem;
+	}
+
+	.reveal {
+		opacity: 0;
+		transform: translateY(1.1rem);
+		transition:
+			opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+			transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+
+	.reveal.is-in {
+		opacity: 1;
+		transform: none;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.reveal {
+			opacity: 1;
+			transform: none;
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	const nodes = document.querySelectorAll('.reveal');
+	if (nodes.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+		const observer = new IntersectionObserver(
+			(entries) => {
+				entries.forEach((entry) => {
+					if (entry.isIntersecting) {
+						entry.target.classList.add('is-in');
+						observer.unobserve(entry.target);
+					}
+				});
+			},
+			{ threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
+		);
+		nodes.forEach((node) => observer.observe(node));
+	} else {
+		nodes.forEach((node) => node.classList.add('is-in'));
+	}
+</script>
