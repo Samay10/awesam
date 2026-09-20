@@ -1,0 +1,80 @@
+<div class="field" id="gravity-field" aria-hidden="true"></div>
+
+<script>
+	const field = document.getElementById('gravity-field');
+	const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	if (field && !reduce) {
+		const pool = ['A', 'w', 'e', 'S', 'a', 'm', '★', '∴', '—', 'HN', 'AI'];
+		const pieces: HTMLSpanElement[] = [];
+		let pouring = false;
+		let pourTimer = 0;
+
+		function drop(x: number, y: number) {
+			if (pieces.length > 28) pieces.shift()?.remove();
+			const glyph = document.createElement('span');
+			glyph.className = 'glyph';
+			glyph.textContent = pool[Math.floor(Math.random() * pool.length)] ?? 'A';
+			glyph.style.left = `${x}px`;
+			glyph.style.top = `${y}px`;
+			glyph.style.setProperty('--rot', `${(Math.random() * 40 - 20).toFixed(1)}deg`);
+			glyph.style.setProperty('--dx', `${(Math.random() * 40 - 20).toFixed(1)}px`);
+			field!.append(glyph);
+			pieces.push(glyph);
+			window.setTimeout(() => glyph.classList.add('landed'), 40);
+		}
+
+		field.addEventListener('pointerdown', (event) => {
+			const rect = field.getBoundingClientRect();
+			drop(event.clientX - rect.left, event.clientY - rect.top);
+			pouring = true;
+			pourTimer = window.setInterval(() => {
+				if (!pouring) return;
+				drop(event.clientX - rect.left + (Math.random() * 18 - 9), event.clientY - rect.top);
+			}, 90);
+		});
+
+		window.addEventListener('pointerup', () => {
+			pouring = false;
+			window.clearInterval(pourTimer);
+		});
+	}
+</script>
+
+<style>
+	.field {
+		position: relative;
+		min-height: 7.5rem;
+		border: 1px dashed var(--color-rule);
+		background: color-mix(in srgb, var(--color-paper-deep) 55%, transparent);
+		overflow: hidden;
+		cursor: crosshair;
+	}
+
+	:global(.has-custom-cursor) .field {
+		cursor: none;
+	}
+
+	:global(.glyph) {
+		position: absolute;
+		font-family: var(--font-display);
+		font-size: 1.15rem;
+		color: var(--color-accent);
+		transform: translate(-50%, -50%) rotate(var(--rot, 0deg));
+		pointer-events: none;
+		transition:
+			top 720ms cubic-bezier(0.2, 0.8, 0.2, 1),
+			transform 720ms cubic-bezier(0.2, 0.8, 0.2, 1),
+			opacity 400ms ease;
+	}
+
+	:global(.glyph.landed) {
+		top: calc(100% - 1.35rem) !important;
+		transform: translate(calc(-50% + var(--dx, 0px)), -50%) rotate(calc(var(--rot, 0deg) + 12deg));
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.field {
+			display: none;
+		}
+	}
+</style>

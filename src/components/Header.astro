@@ -12,6 +12,7 @@ const path = Astro.url.pathname;
 		</a>
 
 		<nav class="nav" aria-label="Primary">
+			<a class:list={[{ active: path.includes('/wire') }]} href={`${base}wire/`}>Wire</a>
 			<a class:list={[{ active: path.includes('/archive') }]} href={`${base}archive/`}>Archive</a>
 			<a href={site.portfolio} target="_blank" rel="noreferrer">Portfolio</a>
 		</nav>
@@ -118,8 +119,8 @@ const path = Astro.url.pathname;
 		display: none;
 	}
 
-	@media (max-width: 520px) {
-		.nav a:last-child {
+	@media (max-width: 620px) {
+		.nav a[href*='portfolio'] {
 			display: none;
 		}
 	}

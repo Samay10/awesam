@@ -16,6 +16,10 @@ npm run build
 npm run preview
 ```
 
+## The Wire
+
+`/wire` is a live desk of Hacker News, rising GitHub repos, arXiv papers, and systems/AI field notes. It fetches at build time.
+
 ## Writing
 
 Add Markdown files under `src/content/posts/` with frontmatter:
