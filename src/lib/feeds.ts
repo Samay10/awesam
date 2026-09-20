@@ -1,5 +1,3 @@
-export type FeedId = 'hn' | 'github' | 'papers' | 'field';
-
 export type FeedItem = {
 	id: string;
 	title: string;
@@ -8,14 +6,6 @@ export type FeedItem = {
 	meta: string;
 	summary?: string;
 	score?: number;
-};
-
-export type FeedSection = {
-	id: FeedId;
-	label: string;
-	kicker: string;
-	blurb: string;
-	items: FeedItem[];
 };
 
 const HN_KEYWORDS = [
@@ -41,18 +31,14 @@ const HN_KEYWORDS = [
 	'security',
 ];
 
-const FIELD_KEYWORDS = [
-	'distributed',
-	'system',
-	'llm',
-	'inference',
-	'agent',
-	'latency',
-	'consistency',
-	'consensus',
-	'compiler',
-	'database',
-];
+const X_HANDLES = [
+	{ handle: 'karpathy', label: 'Andrej Karpathy' },
+	{ handle: 'sama', label: 'Sam Altman' },
+	{ handle: 'ylecun', label: 'Yann LeCun' },
+	{ handle: 'OpenAI', label: 'OpenAI' },
+	{ handle: 'ycombinator', label: 'Y Combinator' },
+	{ handle: 'github', label: 'GitHub' },
+] as const;
 
 function isoDate(daysAgo: number) {
 	const date = new Date();
@@ -76,7 +62,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> 
 			...init,
 			headers: {
 				Accept: 'application/json',
-				'User-Agent': 'AweSam-Wire/1.0 (https://samay10.github.io/awesam/)',
+				'User-Agent': 'AweSam/1.0 (https://samay10.github.io/awesam/)',
 				...init?.headers,
 			},
 		});
@@ -91,9 +77,10 @@ async function fetchText(url: string): Promise<string | null> {
 	try {
 		const response = await fetch(url, {
 			headers: {
-				Accept: 'application/atom+xml, application/rss+xml, application/xml, text/xml',
-				'User-Agent': 'AweSam-Wire/1.0 (https://samay10.github.io/awesam/)',
+				Accept: 'application/atom+xml, application/rss+xml, application/xml, text/xml, text/html',
+				'User-Agent': 'AweSam/1.0 (https://samay10.github.io/awesam/)',
 			},
+			signal: AbortSignal.timeout(8000),
 		});
 		if (!response.ok) return null;
 		return await response.text();
@@ -125,15 +112,15 @@ type HnStory = {
 	type?: string;
 };
 
-async function fetchHackerNews(): Promise<FeedItem[]> {
+export async function fetchHackerNews(limit = 12): Promise<FeedItem[]> {
 	const ids = (await fetchJson<number[]>('https://hacker-news.firebaseio.com/v0/topstories.json')) ?? [];
 	const stories = (
 		await Promise.all(
-			ids.slice(0, 36).map((id) => fetchJson<HnStory>(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)),
+			ids.slice(0, 40).map((id) => fetchJson<HnStory>(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)),
 		)
 	).filter((story): story is HnStory => Boolean(story?.title && story.type === 'story'));
 
-	const ranked = stories
+	return stories
 		.map((story) => {
 			const title = story.title ?? '';
 			const relevant = matchesAny(title, HN_KEYWORDS);
@@ -146,9 +133,8 @@ async function fetchHackerNews(): Promise<FeedItem[]> {
 				score: (story.score ?? 0) + (relevant ? 80 : 0),
 			};
 		})
-		.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-
-	return ranked.slice(0, 8);
+		.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+		.slice(0, limit);
 }
 
 type GithubRepo = {
@@ -158,18 +144,17 @@ type GithubRepo = {
 	description: string | null;
 	stargazers_count: number;
 	language: string | null;
-	owner?: { login?: string };
 };
 
-async function fetchGithubRepos(): Promise<FeedItem[]> {
+export async function fetchGithubRepos(limit = 12): Promise<FeedItem[]> {
 	const since = isoDate(10);
 	const query = encodeURIComponent(`created:>${since} stars:>20`);
 	const payload = await fetchJson<{ items?: GithubRepo[] }>(
-		`https://api.github.com/search/repositories?q=${query}&sort=stars&order=desc&per_page=8`,
+		`https://api.github.com/search/repositories?q=${query}&sort=stars&order=desc&per_page=${Math.min(limit, 30)}`,
 		{ headers: { 'X-GitHub-Api-Version': '2022-11-28' } },
 	);
 
-	return (payload?.items ?? []).slice(0, 8).map((repo) => ({
+	return (payload?.items ?? []).slice(0, limit).map((repo) => ({
 		id: `gh-${repo.id}`,
 		title: repo.full_name,
 		href: repo.html_url,
@@ -179,14 +164,14 @@ async function fetchGithubRepos(): Promise<FeedItem[]> {
 	}));
 }
 
-async function fetchPapers(): Promise<FeedItem[]> {
+export async function fetchPapers(limit = 12): Promise<FeedItem[]> {
 	const xml = await fetchText(
-		'https://export.arxiv.org/api/query?search_query=cat:cs.DC+OR+cat:cs.LG+OR+cat:cs.AI+OR+cat:cs.CL&sortBy=submittedDate&sortOrder=descending&max_results=10',
+		`https://export.arxiv.org/api/query?search_query=cat:cs.DC+OR+cat:cs.LG+OR+cat:cs.AI+OR+cat:cs.CL&sortBy=submittedDate&sortOrder=descending&max_results=${limit}`,
 	);
 	if (!xml) return [];
 
 	return parseAtomEntries(xml)
-		.slice(0, 8)
+		.slice(0, limit)
 		.map((entry, index) => {
 			const title = xmlTag(entry, 'title');
 			const summary = xmlTag(entry, 'summary');
@@ -211,86 +196,71 @@ async function fetchPapers(): Promise<FeedItem[]> {
 		});
 }
 
-type RssSource = { name: string; url: string };
-
-async function fetchFieldNotes(): Promise<FeedItem[]> {
-	const sources: RssSource[] = [
-		{ name: 'Berkeley AI Research', url: 'https://bair.berkeley.edu/blog/feed.xml' },
-		{ name: 'Google Research', url: 'https://research.google/blog/rss/' },
-		{ name: 'The Morning Paper', url: 'https://blog.acolyer.org/feed/' },
-		{ name: 'AWS Architecture', url: 'https://aws.amazon.com/blogs/architecture/feed/' },
-	];
-
-	const feeds = await Promise.all(
-		sources.map(async (source) => {
-			const xml = await fetchText(source.url);
-			if (!xml) return [] as FeedItem[];
-			const nodes = parseRssItems(xml).length ? parseRssItems(xml) : parseAtomEntries(xml);
-			return nodes.slice(0, 6).map((node, index) => {
-				const title = xmlTag(node, 'title');
-				const href = xmlTag(node, 'link') || node.match(/<link[^>]+href="([^"]+)"/i)?.[1] || '';
-				const summary = xmlTag(node, 'description') || xmlTag(node, 'summary');
-				const date = (xmlTag(node, 'pubDate') || xmlTag(node, 'published') || xmlTag(node, 'updated')).slice(
-					0,
-					16,
-				);
-				return {
-					id: `field-${source.name}-${index}`,
-					title: clean(title, 140),
-					href,
-					source: source.name,
-					meta: date,
-					summary: summary ? clean(summary, 180) : undefined,
-					score: matchesAny(`${title} ${summary}`, FIELD_KEYWORDS) ? 2 : 1,
-				};
-			});
-		}),
-	);
-
-	return feeds
-		.flat()
-		.filter((item) => item.title && item.href)
-		.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-		.slice(0, 8)
-		.map(({ score: _score, ...item }) => item);
+function parseFeedNodes(xml: string) {
+	const rss = parseRssItems(xml);
+	return rss.length ? rss : parseAtomEntries(xml);
 }
 
-export async function loadWire(): Promise<FeedSection[]> {
-	const [hn, github, papers, field] = await Promise.all([
-		fetchHackerNews(),
-		fetchGithubRepos(),
-		fetchPapers(),
-		fetchFieldNotes(),
+async function fetchHandleFeed(handle: string, label: string): Promise<FeedItem[]> {
+	const urls = [
+		`https://rsshub.app/twitter/user/${handle}`,
+		`https://nitter.privacydev.net/${handle}/rss`,
+		`https://nitter.net/${handle}/rss`,
+	];
+
+	for (const url of urls) {
+		const xml = await fetchText(url);
+		if (!xml || (!xml.includes('<item') && !xml.includes('<entry'))) continue;
+		return parseFeedNodes(xml)
+			.slice(0, 4)
+			.map((node, index) => {
+				const title = xmlTag(node, 'title') || xmlTag(node, 'description');
+				const href =
+					xmlTag(node, 'link') ||
+					node.match(/<link[^>]+href="([^"]+)"/i)?.[1] ||
+					`https://x.com/${handle}`;
+				const date = (xmlTag(node, 'pubDate') || xmlTag(node, 'published') || '').slice(0, 16);
+				return {
+					id: `x-${handle}-${index}`,
+					title: clean(title.replace(/^RT\s+/, ''), 160),
+					href: href.startsWith('http') ? href : `https://x.com/${handle}`,
+					source: `@${handle}`,
+					meta: [label, date].filter(Boolean).join(' · '),
+				};
+			})
+			.filter((item) => item.title);
+	}
+
+	return [];
+}
+
+export async function fetchXTimeline(limit = 12): Promise<FeedItem[]> {
+	const batches = await Promise.all(X_HANDLES.map(({ handle, label }) => fetchHandleFeed(handle, label)));
+	const live = batches.flat().filter((item) => item.title && item.href);
+
+	if (live.length > 0) {
+		return live.slice(0, limit);
+	}
+
+	// X has no public list API — curated listen list with deep links so the section stays useful.
+	return X_HANDLES.map(({ handle, label }, index) => ({
+		id: `x-listen-${handle}`,
+		title: `Follow ${label} on X`,
+		href: `https://x.com/${handle}`,
+		source: `@${handle}`,
+		meta: 'Curated listen list',
+		summary: 'Live X syndication was quiet — open the profile for the latest posts.',
+		score: X_HANDLES.length - index,
+	}));
+}
+
+export async function loadDigest(limitPer = 3) {
+	const [hn, github, papers, x] = await Promise.all([
+		fetchHackerNews(limitPer),
+		fetchGithubRepos(limitPer),
+		fetchPapers(limitPer),
+		fetchXTimeline(limitPer),
 	]);
 
-	return [
-		{
-			id: 'hn',
-			label: 'Hacker News',
-			kicker: 'YC floor',
-			blurb: 'Highest-signal HN stories, tilted toward systems, AI, and things worth opening twice.',
-			items: hn,
-		},
-		{
-			id: 'github',
-			label: 'GitHub',
-			kicker: 'Rising repos',
-			blurb: 'New repositories gaining stars this week — the ones people are actually cloning.',
-			items: github,
-		},
-		{
-			id: 'papers',
-			label: 'Papers',
-			kicker: 'arXiv press',
-			blurb: 'Fresh CS papers from arXiv in distributed systems, learning, and language.',
-			items: papers,
-		},
-		{
-			id: 'field',
-			label: 'Field notes',
-			kicker: 'Systems & AI',
-			blurb: 'Lab blogs and architecture notes from the open web — BAIR, Google Research, The Morning Paper, AWS.',
-			items: field,
-		},
-	];
+	return { hn, github, papers, x };
 }

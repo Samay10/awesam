@@ -1,0 +1,210 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import FeedList from '../components/FeedList.astro';
+import SectionLogo from '../components/SectionLogo.astro';
+import { loadDigest } from '../lib/feeds';
+import { site } from '../data/site';
+
+const base = import.meta.env.BASE_URL;
+const today = new Date().toLocaleDateString('en-US', {
+	weekday: 'long',
+	month: 'long',
+	day: 'numeric',
+	year: 'numeric',
+});
+
+const myPosts = (await getCollection('posts'))
+	.filter((post) => !post.data.draft)
+	.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+	.slice(0, 2);
+
+const digest = await loadDigest(3);
+
+const lanes = [
+	{
+		id: 'articles',
+		title: 'From the press',
+		href: `${base}sections/articles/`,
+		logo: 'articles' as const,
+		items: myPosts.map((post) => ({
+			id: post.id,
+			title: post.data.title,
+			href: `${base}posts/${post.id}/`,
+			source: 'AweSam',
+			meta: post.data.pubDate.toLocaleDateString('en-US', {
+				month: 'short',
+				day: 'numeric',
+				year: 'numeric',
+			}),
+			summary: post.data.description,
+		})),
+	},
+	{
+		id: 'hn',
+		title: 'Hacker News',
+		href: `${base}sections/hn/`,
+		logo: 'hn' as const,
+		items: digest.hn,
+	},
+	{
+		id: 'x',
+		title: 'X',
+		href: `${base}sections/x/`,
+		logo: 'x' as const,
+		items: digest.x,
+	},
+	{
+		id: 'github',
+		title: 'GitHub',
+		href: `${base}sections/github/`,
+		logo: 'github' as const,
+		items: digest.github,
+	},
+	{
+		id: 'papers',
+		title: 'Papers',
+		href: `${base}sections/papers/`,
+		logo: 'papers' as const,
+		items: digest.papers,
+	},
+];
+---
+
+<BaseLayout
+	title={`Today’s Digest · ${site.name}`}
+	description="A short daily mix from my articles, Hacker News, X, GitHub, and papers."
+>
+	<section class="digest">
+		<div class="container-page">
+			<header class="head reveal">
+				<p class="eyebrow">Edition</p>
+				<h1>Today’s Digest</h1>
+				<p class="lede">{today} — a short pass across every desk.</p>
+			</header>
+
+			<nav class="toc reveal" aria-label="Digest sections">
+				{
+					lanes.map((lane) => (
+						<a href={`#${lane.id}`}>{lane.title}</a>
+					))
+				}
+			</nav>
+
+			{
+				lanes.map((lane, index) => (
+					<section class="lane reveal" id={lane.id} style={`--d: ${index * 60}ms`}>
+						<div class="lane-head">
+							<div class="lane-title">
+								<SectionLogo name={lane.logo} />
+								<h2>{lane.title}</h2>
+							</div>
+							<a class="ink-link more" href={lane.href}>
+								Open desk
+							</a>
+						</div>
+						<FeedList items={lane.items} external={lane.id !== 'articles'} />
+					</section>
+				))
+			}
+		</div>
+	</section>
+</BaseLayout>
+
+<style>
+	.digest {
+		padding: clamp(2.4rem, 7vw, 4rem) 0 clamp(4rem, 8vw, 6rem);
+	}
+
+	.head {
+		max-width: 42rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.eyebrow {
+		margin: 0 0 0.7rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-muted);
+	}
+
+	h1 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: clamp(3rem, 9vw, 5.2rem);
+		font-weight: 650;
+		letter-spacing: -0.05em;
+		line-height: 0.92;
+	}
+
+	.lede {
+		margin: 1rem 0 0;
+		font-family: var(--font-display);
+		font-style: italic;
+		font-size: 1.15rem;
+		color: var(--color-muted);
+	}
+
+	.toc {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.55rem 1rem;
+		margin-bottom: 2rem;
+		padding-bottom: 1.25rem;
+		border-bottom: 1px solid var(--color-rule);
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.toc a {
+		color: var(--color-muted);
+	}
+
+	.toc a:hover {
+		color: var(--color-accent);
+	}
+
+	.lane {
+		padding: 1.75rem 0 2rem;
+		border-bottom: 1px solid var(--color-rule);
+		transition-delay: var(--d, 0ms);
+	}
+
+	.lane-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 1rem;
+	}
+
+	.lane-title {
+		display: flex;
+		align-items: center;
+		gap: 0.85rem;
+	}
+
+	.lane-title :global(.logo) {
+		width: 2.35rem;
+		height: 2.35rem;
+	}
+
+	h2 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: clamp(1.45rem, 3vw, 1.85rem);
+		letter-spacing: -0.03em;
+	}
+
+	.more {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		white-space: nowrap;
+	}
+</style>

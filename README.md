@@ -16,9 +16,10 @@ npm run build
 npm run preview
 ```
 
-## The Wire
+## Navigation
 
-`/wire` is a live desk of Hacker News, rising GitHub repos, arXiv papers, and systems/AI field notes. It fetches at build time.
+- **Digest** (`/digest`) — today’s short mix across every desk
+- **Sections** (`/sections`) — five boxes: Articles, Hacker News, X, GitHub, Papers
 
 ## Writing
 

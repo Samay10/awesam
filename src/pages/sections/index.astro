@@ -1,0 +1,204 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import SectionLogo from '../../components/SectionLogo.astro';
+import { site } from '../../data/site';
+
+const base = import.meta.env.BASE_URL;
+
+const boxes = [
+	{
+		id: 'articles',
+		href: `${base}sections/articles/`,
+		title: 'Articles by me',
+		blurb: 'Notes from the press — systems, craft, and whatever I’m learning.',
+		span: 'full' as const,
+		logo: 'articles' as const,
+	},
+	{
+		id: 'hn',
+		href: `${base}sections/hn/`,
+		title: 'Hacker News',
+		blurb: 'YC floor. Highest-signal stories, tilted toward systems and AI.',
+		span: 'half' as const,
+		logo: 'hn' as const,
+	},
+	{
+		id: 'x',
+		href: `${base}sections/x/`,
+		title: 'X',
+		blurb: 'Voices worth following — researchers, builders, and labs.',
+		span: 'half' as const,
+		logo: 'x' as const,
+	},
+	{
+		id: 'github',
+		href: `${base}sections/github/`,
+		title: 'GitHub',
+		blurb: 'Rising repos people are actually starring and cloning.',
+		span: 'half' as const,
+		logo: 'github' as const,
+	},
+	{
+		id: 'papers',
+		href: `${base}sections/papers/`,
+		title: 'Papers',
+		blurb: 'Fresh arXiv work in distributed systems, learning, and language.',
+		span: 'half' as const,
+		logo: 'papers' as const,
+	},
+];
+---
+
+<BaseLayout
+	title={`Sections · ${site.name}`}
+	description="Five desks: my articles, Hacker News, X, GitHub, and papers."
+>
+	<section class="page">
+		<div class="container-page">
+			<header class="head reveal">
+				<p class="eyebrow">Five desks</p>
+				<h1>Sections</h1>
+				<p class="lede">Pick a box. Step inside for the feed.</p>
+			</header>
+
+			<div class="grid">
+				{
+					boxes.map((box, index) => (
+						<a
+							class:list={['box', 'reveal', box.span]}
+							href={box.href}
+							style={`--d: ${index * 70}ms`}
+						>
+							<div class="box-top">
+								<SectionLogo name={box.logo} />
+								<span class="go" aria-hidden="true">↗</span>
+							</div>
+							<h2>{box.title}</h2>
+							<p>{box.blurb}</p>
+						</a>
+					))
+				}
+			</div>
+		</div>
+	</section>
+</BaseLayout>
+
+<style>
+	.page {
+		padding: clamp(2.4rem, 7vw, 4rem) 0 clamp(4rem, 8vw, 6rem);
+	}
+
+	.head {
+		max-width: 40rem;
+		margin-bottom: 1.75rem;
+	}
+
+	.eyebrow {
+		margin: 0 0 0.7rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-muted);
+	}
+
+	h1 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: clamp(3rem, 9vw, 5.2rem);
+		font-weight: 650;
+		letter-spacing: -0.05em;
+		line-height: 0.92;
+	}
+
+	.lede {
+		margin: 1rem 0 0;
+		font-family: var(--font-display);
+		font-style: italic;
+		font-size: 1.15rem;
+		color: var(--color-muted);
+	}
+
+	.grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1rem;
+	}
+
+	.box {
+		display: grid;
+		gap: 0.85rem;
+		align-content: start;
+		min-height: 11.5rem;
+		padding: 1.35rem 1.4rem 1.5rem;
+		border: 1px solid var(--color-rule);
+		background: color-mix(in srgb, var(--color-paper-deep) 40%, transparent);
+		transition:
+			transform 200ms ease,
+			border-color 200ms ease,
+			background 200ms ease,
+			box-shadow 200ms ease;
+	}
+
+	.box.full {
+		grid-column: 1 / -1;
+		min-height: 10rem;
+	}
+
+	.box:hover {
+		transform: translateY(-3px);
+		border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-rule));
+		background: var(--color-paper-deep);
+		box-shadow: 0 18px 40px color-mix(in srgb, var(--color-ink) 8%, transparent);
+	}
+
+	.box-top {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.go {
+		font-size: 1.1rem;
+		color: var(--color-muted);
+		transition:
+			transform 180ms ease,
+			color 180ms ease;
+	}
+
+	.box:hover .go {
+		color: var(--color-accent);
+		transform: translate(2px, -2px);
+	}
+
+	.box h2 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: clamp(1.55rem, 3vw, 2rem);
+		letter-spacing: -0.03em;
+		line-height: 1.1;
+	}
+
+	.box p {
+		margin: 0;
+		max-width: 36rem;
+		color: var(--color-muted);
+		line-height: 1.5;
+		font-size: 0.98rem;
+	}
+
+	.reveal {
+		transition-delay: var(--d, 0ms);
+	}
+
+	@media (max-width: 700px) {
+		.grid {
+			grid-template-columns: 1fr;
+		}
+
+		.box.full {
+			grid-column: auto;
+		}
+	}
+</style>

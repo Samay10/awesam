@@ -33,9 +33,9 @@ const letters = site.name.split('');
 			</h1>
 			<p class="tagline reveal">{site.tagline}</p>
 			<div class="ctas reveal">
-				<a class="cta magnetic ink-link" href={`${base}wire/`} data-magnetic>Open the wire</a>
+				<a class="cta magnetic ink-link" href={`${base}digest/`} data-magnetic>Today’s digest</a>
 				<span class="dot" aria-hidden="true">·</span>
-				<a class="cta magnetic ink-link" href={`${base}archive/`} data-magnetic>Browse the archive</a>
+				<a class="cta magnetic ink-link" href={`${base}sections/`} data-magnetic>Open sections</a>
 				<span class="dot" aria-hidden="true">·</span>
 				<a class="cta magnetic ink-link" href={site.portfolio} data-magnetic>Back to portfolio</a>
 			</div>
@@ -46,7 +46,7 @@ const letters = site.name.split('');
 		<div class="container-page">
 			<div class="section-head reveal">
 				<h2>Latest notes</h2>
-				<a class="ink-link" href={`${base}archive/`}>All</a>
+				<a class="ink-link" href={`${base}sections/articles/`}>All</a>
 			</div>
 			<PostList posts={latest} />
 		</div>

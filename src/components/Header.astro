@@ -3,6 +3,9 @@ import { site } from '../data/site';
 
 const base = import.meta.env.BASE_URL;
 const path = Astro.url.pathname;
+
+const onDigest = path.includes('/digest');
+const onSections = path.includes('/sections') || path.includes('/archive') || path.includes('/posts');
 ---
 
 <header class="masthead">
@@ -12,8 +15,8 @@ const path = Astro.url.pathname;
 		</a>
 
 		<nav class="nav" aria-label="Primary">
-			<a class:list={[{ active: path.includes('/wire') }]} href={`${base}wire/`}>Wire</a>
-			<a class:list={[{ active: path.includes('/archive') }]} href={`${base}archive/`}>Archive</a>
+			<a class:list={[{ active: onDigest }]} href={`${base}digest/`}>Digest</a>
+			<a class:list={[{ active: onSections }]} href={`${base}sections/`}>Sections</a>
 			<a href={site.portfolio} target="_blank" rel="noreferrer">Portfolio</a>
 		</nav>
 
