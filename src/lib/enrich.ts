@@ -49,7 +49,7 @@ Hard bans:
 - No AI slop: delve, landscape, robust, leverage, unlock, empower, game-changer, "in today's world", "it's important to note", "A closer look at", "on the wire", "source of truth", "Privacy advocates are sounding the alarm", "The broader implication is", "helps engineers gauge/understand".
 - Do not invent numbers, quotes, authors, benchmarks, or conclusions missing from the source notes.
 - Never copy the source verbatim. Rewrite.
-- Plain prose only inside JSON strings — no markdown, bullets, headings, numbered lists, HTML tags, comments, or entities (`&quot;`, `&#39;`, `&amp;`).
+- Plain prose only inside JSON strings — no markdown, bullets, headings, numbered lists, HTML tags, comments, or named/numeric HTML entities.
 
 Structure:
 - paragraphs: at least 4 proper paragraphs for a 3–4 minute read (each paragraph several sentences; not one-liners).
