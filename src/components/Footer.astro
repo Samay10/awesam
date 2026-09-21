@@ -2,92 +2,27 @@
 import { site } from '../data/site';
 
 const year = new Date().getFullYear();
-const base = import.meta.env.BASE_URL;
 ---
 
 <footer class="footer">
-	<div class="container-page inner">
-		<div class="left">
-			<p class="mark">{site.name}</p>
-			<p class="mission">
-				Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
-			</p>
-			<p class="copy">© {year} {site.author}</p>
-		</div>
-		<div class="right">
-			<nav class="links" aria-label="Footer">
-				<a href={`${base}digest/`}>Digest</a>
-				<a href={`${base}sections/`}>Sections</a>
-				<a href={site.github} target="_blank" rel="noreferrer">GitHub</a>
-				<a href={site.portfolio} target="_blank" rel="noreferrer">Portfolio</a>
-			</nav>
-		</div>
+	<div class="container-page">
+		<p class="copy">© {year} {site.author}</p>
 	</div>
 </footer>
 
 <style>
 	.footer {
 		border-top: 1px solid var(--color-border);
-		padding: 2.5rem 0 calc(2rem + env(safe-area-inset-bottom));
+		padding: 1.75rem 0 calc(1.5rem + env(safe-area-inset-bottom));
 		background: var(--color-surface);
 	}
 
-	.inner {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		gap: 2rem;
-	}
-
-	.mark {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: 1.1rem;
-		font-weight: 600;
-		letter-spacing: -0.02em;
-	}
-
-	.mission {
-		margin: 0.65rem 0 0;
-		max-width: 28rem;
-		color: var(--color-on-surface-variant);
-		line-height: 1.55;
-	}
-
 	.copy {
-		margin: 1rem 0 0;
+		margin: 0;
 		font-family: var(--font-mono);
 		font-size: 0.6875rem;
 		letter-spacing: 0.04em;
 		color: var(--color-outline);
 		text-transform: uppercase;
-	}
-
-	.links {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 1rem;
-		font-family: var(--font-mono);
-		font-size: 0.6875rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-	}
-
-	.links a {
-		color: var(--color-on-surface-variant);
-	}
-
-	.links a:hover {
-		color: var(--color-secondary);
-	}
-
-	.right {
-		text-align: right;
-	}
-
-	@media (max-width: 700px) {
-		.right {
-			text-align: left;
-		}
 	}
 </style>
