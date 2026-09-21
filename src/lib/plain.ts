@@ -30,11 +30,11 @@ function decodeEntities(text: string) {
 	for (let i = 0; i < 4 && cur !== prev; i++) {
 		prev = cur;
 		cur = cur
-			.replace(/&#x([0-9a-f]+);?/gi, (_, hex) => safeChar(parseInt(hex, 16)))
-			.replace(/&#(\d+);?/g, (_, dec) => safeChar(parseInt(dec, 10)))
+			.replace(new RegExp('&' + '#x([0-9a-f]+);?', 'gi'), (_, hex) => safeChar(parseInt(hex, 16)))
+			.replace(new RegExp('&' + '#(\\d+);?', 'g'), (_, dec) => safeChar(parseInt(dec, 10)))
 			.replace(/&([a-z]+);/gi, (match, name: string) => NAMED[name.toLowerCase()] ?? match);
 	}
-	// Leftovers from a previous pass that ate the '#' in &#39;
+	// Leftovers from a previous pass that ate the '#' in numeric apostrophe entities.
 	return cur.replace(/&39;?/g, "'").replace(/&quot;?/gi, '"').replace(/&amp;?/gi, '&');
 }
 
