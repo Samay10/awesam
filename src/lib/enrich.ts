@@ -8,49 +8,59 @@ import {
 	fetchHackerNews,
 	fetchHottestGithubToday,
 	fetchPapers,
+	fetchPressNews,
+	fetchRedditTech,
 	fetchXTimeline,
 	type FeedItem,
 } from './feeds';
 
-/** Bump to invalidate fallback/slop caches. */
-const PROMPT_VERSION = 'v3-text';
+/** Bump to invalidate prior prompt caches. */
+const PROMPT_VERSION = 'v4-voice';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
 const TEXT_CONCURRENCY = 1;
 
-const SHARED_RULES = `You are a sharp human editor for AweSam — a technical digest for systems, AI, and programming people.
+const SHARED_RULES = `You write for AweSam — a technical digest read by young engineers, builders, and AI/systems people.
 
-Write like a curious senior engineer at a laptop late at night: specific, opinionated, alive. Not like a chatbot.
+Voice: technical-author energy. Informal is fine. Sound like a sharp human who ships code — not a summarizer bot, not a PR intern.
 
-Hard rules:
-- Never copy, quote, or closely paraphrase the source. Transform it.
-- Do not invent numbers, benchmarks, quotes, authors, or results missing from the notes.
-- If notes are thin, be honest about uncertainty — still make the briefing vivid and useful.
-- Ban AI slop: no "A closer look at", "delve", "landscape", "in today's world", "it's important to note", "robust solution", "game-changer", "leverage", "unlock", "empower".
-- Ban the phrases "on the wire", "live signal is thin", "model was unavailable", "treat the original as the source of truth".
-- Prefer concrete nouns, verbs, and stakes over adjectives.
-- Length: a 2–3 minute read (~320–480 words across 3–5 short paragraphs).
+Hard bans:
+- Never meta-comment on the post ("This post…", "This tweet…", "This HN thread…", "sounds like…", "reads as…").
+- No AI slop: delve, landscape, robust, leverage, unlock, empower, game-changer, "in today's world", "it's important to note", "A closer look at", "on the wire", "source of truth".
+- Do not invent numbers, quotes, authors, or results missing from the notes.
+- Never copy the source verbatim. Rewrite.
 
 Return ONLY valid JSON (no markdown fences):
 {
-  "lede": "50-80 words. Hook a senior engineer. Specific stakes.",
-  "whyRead": "one crisp human sentence",
-  "paragraphs": ["paragraph 1", "paragraph 2", "paragraph 3", "..."]
+  "lede": "card blurb",
+  "whyRead": "one sentence",
+  "paragraphs": ["...", "..."]
 }`;
 
 const DESK_BRIEF: Record<DigestSource, string> = {
 	hn: `Desk: Hacker News.
-Angle: why this is climbing, the systems/privacy/AI implication, and what to pressure-test in the thread.
-Sound like someone who reads HN for craft, not karma.`,
-	x: `Desk: X / lab signal.
-Angle: what actually shipped or was claimed. Expand carefully — do not invent a paper from a tweet.
-Keep energy high; keep claims tight.`,
+Write a cool 2–3 minute read (~320–450 words, 3–5 short paragraphs).
+Lead with the tech itself — what broke, shipped, or got argued.
+Bring in the shape of the discussion (camps, caveats, what people are checking) without saying "this post" or "this thread".
+Card lede: 45–70 words, concrete stakes.`,
+	x: `Desk: X.
+Keep it simple and to the point. 2–3 short paragraphs (~180–280 words total).
+Say what the person claimed or shipped. No fluff. No "this tweet".
+Card lede: 30–45 words, punchy.`,
+	press: `Desk: tech press (WIRED / TechCrunch / The Verge).
+2–3 minute read. Lead with the product, company, or tech claim. Keep it skeptical and concrete.
+Card lede: 45–70 words.`,
+	reddit: `Desk: Reddit.
+2–3 minute read on the idea people are chewing on. Technical, a bit informal. Skip meme voice.
+Card lede: 40–60 words.`,
 	github: `Desk: rising GitHub repo.
-Angle: what it does, who it is for, why it is getting stars now. Make a builder want to clone it — or know why to skip it.`,
+What it does, who it's for, why stars are moving. Builder voice.
+Card lede: 40–60 words.`,
 	papers: `Desk: research paper.
-Angle: problem → approach → why a practitioner should care. Stay faithful to the abstract. Make the idea feel urgent, not academic-flat.`,
+Problem → approach → why a practitioner should care. Faithful to the abstract.
+Card lede: 45–70 words.`,
 	articles: `Desk: article.
-Angle: the argument and the stakes for an engineering reader.`,
+Argument + stakes for a young engineer. Card lede: 45–70 words.`,
 };
 
 type Draft = {
@@ -75,11 +85,11 @@ function statsFromMeta(meta: string) {
 
 function minutesFor(paragraphs: string[]) {
 	const words = paragraphs.join(' ').split(/\s+/).filter(Boolean).length;
-	return Math.max(2, Math.min(3, Math.round(words / 200) || 2));
+	return Math.max(2, Math.min(3, Math.round(words / 180) || 2));
 }
 
 const SLOP =
-	/A closer look at|on the wire|live signal is thin|model was unavailable|systems-minded reader|source of truth and use this note|delve|game-changer|in today's/i;
+	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note/i;
 
 function isWeakDraft(draft: Draft | null | undefined, title: string) {
 	if (!draft?.lede || draft.paragraphs.length < 2) return true;
@@ -129,24 +139,25 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 		`Source desk: ${source}`,
 		`Source label: ${item.source}`,
 		`Title: ${item.title}`,
-		item.summary ? `Source notes:\n${item.summary}` : 'Source notes: title/meta only — do not invent an abstract.',
+		item.summary ? `Source notes:\n${item.summary}` : 'Source notes: title/meta only — do not invent details.',
 		item.meta ? `Signals: ${item.meta}` : '',
 		`URL (orientation only): ${item.href}`,
 		DESK_BRIEF[source],
-		`Write a briefing that could only fit this title. Make it exciting and human. No generic filler.`,
+		`Write like a technical author for young engineers. Informal OK. Zero meta commentary about "the post".`,
 	]
 		.filter(Boolean)
 		.join('\n\n');
 }
 
 async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft | null> {
+	const maxTokens = source === 'x' ? 900 : 1800;
 	try {
 		const raw = await chatCompletion(
 			[
 				{ role: 'system', content: SHARED_RULES },
 				{ role: 'user', content: buildUserPrompt(item, source) },
 			],
-			{ maxTokens: 1800, temperature: 0.55, json: true },
+			{ maxTokens, temperature: 0.6, json: true },
 		);
 		const parsed = extractJson(raw);
 		if (!parsed || isWeakDraft(parsed, item.title)) {
@@ -156,10 +167,10 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 					{ role: 'system', content: SHARED_RULES },
 					{
 						role: 'user',
-						content: `${buildUserPrompt(item, source)}\n\nPrevious attempt was too generic. Rewrite with sharper specifics and zero filler.`,
+						content: `${buildUserPrompt(item, source)}\n\nPrevious draft was too meta or generic. Rewrite: lead with the tech, no "this post/tweet" framing.`,
 					},
 				],
-				{ maxTokens: 1800, temperature: 0.65, json: true },
+				{ maxTokens, temperature: 0.7, json: true },
 			);
 			const second = extractJson(retry);
 			if (!second || isWeakDraft(second, item.title)) return null;
@@ -185,6 +196,13 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise
 	return out;
 }
 
+function badgeFor(source: DigestSource, item: FeedItem) {
+	if (source === 'hn') return 'HN · Best';
+	if (source === 'github') return 'GitHub';
+	if (source === 'papers' || source === 'x' || source === 'press' || source === 'reddit') return item.source;
+	return 'Article';
+}
+
 async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story | null> {
 	const id = storySlug(item.id);
 	const cached = await readCache(id);
@@ -206,19 +224,10 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		draft,
 	});
 
-	const badge =
-		source === 'papers' || source === 'x'
-			? item.source
-			: source === 'hn'
-				? 'HN · Best'
-				: source === 'github'
-					? 'GitHub'
-					: 'Article';
-
 	return {
 		id,
 		source,
-		badge,
+		badge: badgeFor(source, item),
 		title: item.title,
 		lede: draft.lede,
 		whyRead: draft.whyRead,
@@ -255,20 +264,34 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 			x: [],
 			github: [],
 			papers: [],
+			press: [],
+			reddit: [],
 		};
 		await mkdir(path.dirname(CATALOG_PATH), { recursive: true });
 		await writeFile(CATALOG_PATH, JSON.stringify(empty, null, 2));
 		return empty;
 	}
 
-	const [hn, github, papers, x] = await Promise.all([
+	const [hn, github, papers, x, press, reddit] = await Promise.all([
 		fetchHackerNews(10),
 		fetchHottestGithubToday(6),
 		fetchPapers(10),
 		fetchXTimeline(10),
+		fetchPressNews(8),
+		fetchRedditTech(6),
 	]);
 
+	// Digest mix: HN + press + X + Reddit (github/papers stay on their section pages).
+	const digestPicks: Sourced[] = [];
+	take(hn, 'hn', 3, digestPicks);
+	take(press, 'press', 3, digestPicks);
+	take(x, 'x', 2, digestPicks);
+	take(reddit, 'reddit', 2, digestPicks);
+	take(hn, 'hn', 10 - digestPicks.length, digestPicks);
+	take(press, 'press', 10 - digestPicks.length, digestPicks);
+
 	const jobs: Sourced[] = [
+		...digestPicks,
 		...hn.map((item) => ({ item, source: 'hn' as const })),
 		...x.map((item) => ({ item, source: 'x' as const })),
 		...github.map((item) => ({ item, source: 'github' as const })),
@@ -287,13 +310,6 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	const pick = (items: FeedItem[]) =>
 		items.map((item) => byId.get(storySlug(item.id))).filter((row): row is Story => Boolean(row));
 
-	const digestPicks: Sourced[] = [];
-	take(hn, 'hn', 4, digestPicks);
-	take(github, 'github', 2, digestPicks);
-	take(papers, 'papers', 2, digestPicks);
-	take(x, 'x', 2, digestPicks);
-	take(hn, 'hn', 10 - digestPicks.length, digestPicks);
-
 	const catalog: StoryCatalog = {
 		generatedAt: new Date().toISOString(),
 		digest: digestPicks.map((row) => byId.get(storySlug(row.item.id))).filter((row): row is Story => Boolean(row)),
@@ -301,11 +317,15 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 		x: pick(x),
 		github: pick(github),
 		papers: pick(papers),
+		press: pick(press),
+		reddit: pick(reddit),
 	};
 
 	await mkdir(path.dirname(CATALOG_PATH), { recursive: true });
 	await writeFile(CATALOG_PATH, JSON.stringify(catalog, null, 2));
-	console.log(`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length})`);
+	console.log(
+		`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length}; press ${press.length} reddit ${reddit.length})`,
+	);
 	return catalog;
 }
 

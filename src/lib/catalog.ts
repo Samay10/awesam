@@ -24,6 +24,8 @@ export type StoryCatalog = {
 	x: Story[];
 	github: Story[];
 	papers: Story[];
+	press: Story[];
+	reddit: Story[];
 };
 
 export const CATALOG_PATH = path.join(process.cwd(), 'src/data/generated/stories.json');
@@ -37,13 +39,21 @@ const empty = (): StoryCatalog => ({
 	x: [],
 	github: [],
 	papers: [],
+	press: [],
+	reddit: [],
 });
 
 export async function loadCatalog(): Promise<StoryCatalog> {
 	if (cached) return cached;
 	try {
 		const raw = await readFile(CATALOG_PATH, 'utf8');
-		cached = JSON.parse(raw) as StoryCatalog;
+		const parsed = JSON.parse(raw) as StoryCatalog;
+		cached = {
+			...empty(),
+			...parsed,
+			press: parsed.press ?? [],
+			reddit: parsed.reddit ?? [],
+		};
 		return cached;
 	} catch {
 		return empty();
@@ -53,7 +63,15 @@ export async function loadCatalog(): Promise<StoryCatalog> {
 export function allStories(catalog: StoryCatalog): Story[] {
 	const seen = new Set<string>();
 	const rows: Story[] = [];
-	for (const story of [...catalog.digest, ...catalog.hn, ...catalog.x, ...catalog.github, ...catalog.papers]) {
+	for (const story of [
+		...catalog.digest,
+		...catalog.hn,
+		...catalog.x,
+		...catalog.github,
+		...catalog.papers,
+		...catalog.press,
+		...catalog.reddit,
+	]) {
 		if (seen.has(story.id)) continue;
 		seen.add(story.id);
 		rows.push(story);

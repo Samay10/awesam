@@ -677,6 +677,127 @@ function statusIdFromHref(href: string, handle: string, index: number) {
 	return match ? `x-${match[1]}` : `x-${handle}-${index}`;
 }
 
+function feedLink(node: string) {
+	const hrefAttr = node.match(/<link[^>]+href="([^"]+)"/i)?.[1];
+	const plain = xmlTag(node, 'link');
+	const candidate = (hrefAttr || plain || '').trim();
+	return candidate.startsWith('http') ? candidate : '';
+}
+
+function hashId(prefix: string, value: string) {
+	let hash = 0;
+	for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+	return `${prefix}-${hash.toString(36)}`;
+}
+
+const PRESS_FEEDS = [
+	{ label: 'WIRED', url: 'https://www.wired.com/feed/rss', weight: 3 },
+	{ label: 'TechCrunch', url: 'https://techcrunch.com/feed/', weight: 3 },
+	{ label: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', weight: 3 },
+] as const;
+
+const REDDIT_FEEDS = [
+	{ label: 'r/programming', url: 'https://www.reddit.com/r/programming/.rss', weight: 3 },
+	{ label: 'r/MachineLearning', url: 'https://www.reddit.com/r/MachineLearning/.rss', weight: 3 },
+	{ label: 'r/technology', url: 'https://www.reddit.com/r/technology/.rss', weight: 2 },
+	{ label: 'r/artificial', url: 'https://www.reddit.com/r/artificial/.rss', weight: 2 },
+] as const;
+
+const PRESS_KEYWORDS = [
+	...HN_KEYWORDS,
+	'startup',
+	'chip',
+	'semiconductor',
+	'apple',
+	'google',
+	'meta',
+	'microsoft',
+	'openai',
+	'anthropic',
+	'cyber',
+	'privacy',
+	'cloud',
+	'software',
+	'app',
+	'iphone',
+	'android',
+];
+
+async function fetchRssOutlet(
+	label: string,
+	url: string,
+	weight: number,
+	prefix: string,
+): Promise<FeedItem[]> {
+	const xml = await fetchText(url);
+	if (!xml) return [];
+
+	return parseFeedNodes(xml)
+		.slice(0, 12)
+		.map((node, index) => {
+			const title = clean(xmlTag(node, 'title'), 140);
+			const summary = clean(
+				(xmlTag(node, 'description') || xmlTag(node, 'summary') || xmlTag(node, 'content') || title).replace(
+					/<[^>]+>/g,
+					' ',
+				),
+				240,
+			);
+			const href = feedLink(node) || url;
+			const date = (xmlTag(node, 'pubDate') || xmlTag(node, 'updated') || xmlTag(node, 'published') || '').slice(0, 25);
+			const score = relevanceScore(`${title} ${summary}`, weight);
+			if (!title || !href.startsWith('http')) return null;
+			return {
+				id: hashId(prefix, href || `${label}-${index}`),
+				title,
+				href,
+				source: label,
+				meta: [label, date].filter(Boolean).join(' · '),
+				summary,
+				score,
+			} satisfies FeedItem;
+		})
+		.filter((item): item is FeedItem => Boolean(item && (item.score ?? 0) >= 4));
+}
+
+/** WIRED · TechCrunch · The Verge — tech press RSS. */
+export async function fetchPressNews(limit = 8): Promise<FeedItem[]> {
+	const batches = await Promise.all(
+		PRESS_FEEDS.map(({ label, url, weight }) => fetchRssOutlet(label, url, weight, 'press')),
+	);
+	const seen = new Set<string>();
+	return batches
+		.flat()
+		.filter((item) => {
+			if (seen.has(item.id) || seen.has(item.href)) return false;
+			seen.add(item.id);
+			seen.add(item.href);
+			return matchesAny(`${item.title} ${item.summary ?? ''}`, PRESS_KEYWORDS);
+		})
+		.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+		.slice(0, limit);
+}
+
+/** Reddit programming / ML / tech / AI. */
+export async function fetchRedditTech(limit = 6): Promise<FeedItem[]> {
+	const batches = await Promise.all(
+		REDDIT_FEEDS.map(({ label, url, weight }) => fetchRssOutlet(label, url, weight, 'reddit')),
+	);
+	const seen = new Set<string>();
+	return batches
+		.flat()
+		.filter((item) => {
+			if (seen.has(item.id) || seen.has(item.href)) return false;
+			// Drop pure self-promo megathreads and non-tech fluff when possible.
+			if (/daily discussion|megathread|what are you working/i.test(item.title)) return false;
+			seen.add(item.id);
+			seen.add(item.href);
+			return true;
+		})
+		.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+		.slice(0, limit);
+}
+
 /**
  * X has no free public API for new apps (pay-per-use only).
  * We syndicate curated handles via FxEmbed RSS: https://docs.fxembed.com/guide/advanced/rss-atom-feeds/
@@ -701,8 +822,10 @@ async function fetchHandleFeed(
 			.map((node, index) => {
 				const rawTitle = xmlTag(node, 'title') || xmlTag(node, 'description');
 				const rawDesc = xmlTag(node, 'description') || rawTitle;
-				const title = clean(rawTitle.replace(/^RT\s+@?\w+:\s*/i, ''), 160);
-				const summary = clean(rawDesc.replace(/<[^>]+>/g, ' '), 220);
+				const full = clean(rawTitle.replace(/^RT\s+@?\w+:\s*/i, ''), 280);
+				const body = clean((rawDesc || rawTitle).replace(/<[^>]+>/g, ' ').replace(/^RT\s+@?\w+:\s*/i, ''), 320);
+				const title = clean(full, 96);
+				const summary = body.length >= full.length ? body : full;
 				const href =
 					xmlTag(node, 'link') ||
 					node.match(/<link[^>]+href="([^"]+)"/i)?.[1] ||
@@ -711,7 +834,7 @@ async function fetchHandleFeed(
 				const ownPost = new RegExp(`x\\.com/${handle}/status/`, 'i').test(normalizedHref);
 				if (!ownPost) return null;
 				const date = (xmlTag(node, 'pubDate') || xmlTag(node, 'published') || '').slice(0, 25);
-				const score = relevanceScore(`${title} ${summary}`, weight);
+				const score = relevanceScore(`${full} ${summary}`, weight);
 				return {
 					id: statusIdFromHref(normalizedHref, handle, index),
 					title,

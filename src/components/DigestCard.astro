@@ -99,13 +99,19 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 	.tag-articles {
 		color: var(--color-tag-articles);
 	}
+	.tag-press {
+		color: var(--color-tag-press);
+	}
+	.tag-reddit {
+		color: var(--color-tag-reddit);
+	}
 
 	.when {
 		color: var(--color-on-surface-variant);
 	}
 
 	.title {
-		display: block;
+		display: -webkit-box;
 		width: 100%;
 		margin: 0.55rem 0 0;
 		padding: 0;
@@ -117,6 +123,12 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		letter-spacing: -0.015em;
 		color: var(--color-on-surface);
 		line-height: 1.25;
+		overflow: hidden;
+		overflow-wrap: anywhere;
+		word-break: break-word;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
 		transition: color 150ms linear;
 	}
 
@@ -127,6 +139,14 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 	.dense .title {
 		font-size: 1.05rem;
 		line-height: 1.3;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+	}
+
+	.card[data-source='x'] .title {
+		font-size: clamp(1rem, 1.6vw, 1.2rem);
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 	}
 
 	.card:hover .title {
@@ -138,6 +158,11 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		color: var(--color-on-surface-variant);
 		line-height: 1.55;
 		font-size: 0.875rem;
+		display: -webkit-box;
+		overflow: hidden;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 4;
+		line-clamp: 4;
 	}
 
 	.dense .abstract {

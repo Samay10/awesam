@@ -46,6 +46,8 @@ Build-time fetches (no manual daily edits):
 
 - **Hacker News** — official Firebase API [`beststories`](https://github.com/HackerNews/API), soft-filtered toward systems/AI titles
 - **X** — no free official API; curated AI/systems handles via [FxEmbed RSS](https://docs.fxembed.com/guide/advanced/rss-atom-feeds/), ranked for AI · systems · hardware · software relevance
+- **Press** — WIRED, TechCrunch, and The Verge RSS (tech-filtered into the digest mix)
+- **Reddit** — r/programming, r/MachineLearning, r/technology, r/artificial
 - **GitHub** — hottest rising repos at build time; live PR pulse on `/sections/github` polls flagship repos in the browser every **5 minutes**
 - **Papers** — arXiv preprints + [OpenAlex](https://openalex.org/) scholarly index for NeurIPS / ICLR / ICML / ACL / AAAI / EMNLP and top labs (OpenAI, DeepMind, Google, Meta, Stanford, MIT, Berkeley, MSR). ResearchGate and Google Scholar have no public API, so OpenAlex is the open replacement covering the same literature.
 

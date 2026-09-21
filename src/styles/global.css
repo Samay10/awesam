@@ -31,6 +31,8 @@
 	--color-tag-github: #24292e;
 	--color-tag-papers: #8b2500;
 	--color-tag-articles: #a73914;
+	--color-tag-press: #0b6e4f;
+	--color-tag-reddit: #ff4500;
 	--color-nav: rgba(252, 249, 242, 0.88);
 
 	/* Botanical frame — light */
@@ -72,6 +74,8 @@ html[data-theme='dark'] {
 	--color-tag-github: #c8c6c5;
 	--color-tag-papers: #ffb59f;
 	--color-tag-articles: #ff784f;
+	--color-tag-press: #3dd68c;
+	--color-tag-reddit: #ff7a59;
 	--color-nav: rgba(13, 13, 13, 0.9);
 
 	/* Botanical frame — dark: luminous sakura on near-black */

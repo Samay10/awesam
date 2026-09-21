@@ -1,4 +1,4 @@
-export type DigestSource = 'hn' | 'x' | 'github' | 'papers' | 'articles';
+export type DigestSource = 'hn' | 'x' | 'github' | 'papers' | 'articles' | 'press' | 'reddit';
 
 export type DigestCard = {
 	id: string;
