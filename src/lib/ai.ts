@@ -1,18 +1,17 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
-/** Groq free-tier workhorse — 14.4k requests/day, no card. */
+/** Groq free-tier workhorse — stay on this model to avoid TPM blowups. */
 export const TEXT_MODEL = process.env.TEXT_MODEL ?? 'llama-3.1-8b-instant';
-const TEXT_FALLBACKS = (process.env.TEXT_FALLBACKS ?? 'llama-3.1-8b-instant,openai/gpt-oss-20b')
-	.split(',')
-	.map((value) => value.trim())
-	.filter(Boolean);
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const POLLINATIONS_IMAGE = 'https://image.pollinations.ai/prompt';
 
 const IMAGE_GAP_MS = Number(process.env.IMAGE_GAP_MS ?? 16_000);
 let lastImageAt = 0;
+let lastTextAt = 0;
+const TEXT_GAP_MS = Number(process.env.TEXT_GAP_MS ?? 1_200);
 
 export function groqKey(): string | undefined {
 	return process.env.GROQ_API_KEY || process.env.GROQ_KEY || undefined;
@@ -22,37 +21,69 @@ export function hasTextKey() {
 	return Boolean(groqKey());
 }
 
+export function seedFromId(id: string) {
+	const hex = createHash('sha1').update(id).digest('hex').slice(0, 8);
+	return Number.parseInt(hex, 16) % 1_000_000;
+}
+
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
+function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function throttleText() {
+	const wait = lastTextAt + TEXT_GAP_MS - Date.now();
+	if (wait > 0) await sleep(wait);
+	lastTextAt = Date.now();
+}
 
 export async function chatCompletion(
 	messages: ChatMessage[],
-	opts: { maxTokens?: number; temperature?: number } = {},
+	opts: { maxTokens?: number; temperature?: number; json?: boolean } = {},
 ): Promise<string> {
 	const token = groqKey();
 	if (!token) throw new Error('GROQ_API_KEY is missing');
 
-	const models = [...new Set([TEXT_MODEL, ...TEXT_FALLBACKS])];
+	const wantJson = opts.json !== false;
 	let lastError: Error | null = null;
 
-	for (const model of models) {
+	for (let attempt = 0; attempt < 4; attempt++) {
+		await throttleText();
+		const body: Record<string, unknown> = {
+			model: TEXT_MODEL,
+			messages,
+			max_tokens: opts.maxTokens ?? 1600,
+			temperature: opts.temperature ?? 0.4,
+		};
+		if (wantJson) body.response_format = { type: 'json_object' };
+
 		const response = await fetch(GROQ_CHAT_URL, {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${token}`,
 				'Content-Type': 'application/json',
 			},
-			body: JSON.stringify({
-				model,
-				messages,
-				max_tokens: opts.maxTokens ?? 1100,
-				temperature: opts.temperature ?? 0.35,
-				response_format: { type: 'json_object' },
-			}),
+			body: JSON.stringify(body),
 		});
+
+		if (response.status === 429) {
+			const detail = await response.text().catch(() => '');
+			const retry = /try again in ([\d.]+)s/i.exec(detail);
+			const waitMs = retry ? Math.ceil(Number(retry[1]) * 1000) + 500 : 4_000 * (attempt + 1);
+			lastError = new Error(`Groq 429 (${TEXT_MODEL}): ${detail.slice(0, 220)}`);
+			await sleep(waitMs);
+			continue;
+		}
 
 		if (!response.ok) {
 			const detail = await response.text().catch(() => '');
-			lastError = new Error(`Groq ${response.status} (${model}): ${detail.slice(0, 280)}`);
+			lastError = new Error(`Groq ${response.status} (${TEXT_MODEL}): ${detail.slice(0, 280)}`);
+			// JSON mode sometimes fails on small models — retry without it once.
+			if (wantJson && /json/i.test(detail) && attempt >= 1) {
+				opts = { ...opts, json: false };
+			}
+			await sleep(800 * (attempt + 1));
 			continue;
 		}
 
@@ -61,14 +92,10 @@ export async function chatCompletion(
 		};
 		const text = payload.choices?.[0]?.message?.content?.trim();
 		if (text) return text;
-		lastError = new Error(`Groq returned an empty completion (${model})`);
+		lastError = new Error(`Groq returned an empty completion (${TEXT_MODEL})`);
 	}
 
 	throw lastError ?? new Error('Groq chat failed');
-}
-
-function sleep(ms: number) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function throttleImages() {
@@ -77,7 +104,11 @@ async function throttleImages() {
 	lastImageAt = Date.now();
 }
 
-export async function generateCoverPng(prompt: string, destPath: string): Promise<boolean> {
+export async function generateCoverPng(
+	prompt: string,
+	destPath: string,
+	opts: { seed: number } = { seed: 1 },
+): Promise<boolean> {
 	const query = new URLSearchParams({
 		model: process.env.IMAGE_MODEL ?? 'flux',
 		width: '1024',
@@ -85,8 +116,9 @@ export async function generateCoverPng(prompt: string, destPath: string): Promis
 		nologo: 'true',
 		enhance: 'false',
 		referrer: 'awesam',
+		seed: String(opts.seed),
 	});
-	const encoded = encodeURIComponent(prompt.slice(0, 450));
+	const encoded = encodeURIComponent(prompt.slice(0, 420));
 	const pollinationsKey = process.env.POLLINATIONS_KEY;
 
 	const urls = pollinationsKey
