@@ -15,18 +15,11 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 	<div class="canvas container-page">
 		<header class="mast">
 			<div class="issue">
-				<div class="left">
-					<span class="vol">Volume IV</span>
-					<span class="sep">·</span>
-					<span>Issue 298</span>
-					<span class="sep">·</span>
-					<span class="on">Curated Technical Edition</span>
-				</div>
-				<div class="right">
-					<span class="live"><span class="pulse"></span>{counts.all} Synopses Indexed</span>
-					<span class="sep hide-sm">·</span>
-					<span class="hide-sm">Matrix: 2·2·3·3 Rhythmic Plan</span>
-				</div>
+				<span class="vol">Volume IV</span>
+				<span class="sep">·</span>
+				<span>Issue 298</span>
+				<span class="sep">·</span>
+				<span class="on">Curated Technical Edition</span>
 			</div>
 
 			<div class="hero-grid">
@@ -53,14 +46,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 		{
 			digestBands.map((band) => (
 				<section class="band" data-band={band.id}>
-					<div class="band-head">
-						<div class="band-title">
-							<span class="band-label">{band.label}</span>
-							<span class="slash">/</span>
-							<h2>{band.title}</h2>
-						</div>
-						<span class="aside">{band.aside}</span>
-					</div>
 					<div class:list={['grid', band.cards.length === 3 ? 'three' : 'two']}>
 						{band.cards.map((card) => (
 							<DigestCard card={card} />
@@ -213,19 +198,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 		color: var(--color-outline);
 	}
 
-	.live {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.35rem;
-	}
-
-	.pulse {
-		width: 0.35rem;
-		height: 0.35rem;
-		border-radius: 999px;
-		background: var(--color-secondary);
-	}
-
 	.hero-grid {
 		display: grid;
 		grid-template-columns: 1fr;
@@ -294,39 +266,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 	.band {
 		display: grid;
 		gap: 0.875rem;
-	}
-
-	.band-head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.5rem 1rem;
-	}
-
-	.band-title {
-		display: flex;
-		align-items: center;
-		gap: 0.45rem;
-	}
-
-	.slash {
-		color: var(--color-outline);
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-	}
-
-	.band-title h2 {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: 1.05rem;
-		font-weight: 600;
-	}
-
-	.aside {
-		font-family: var(--font-mono);
-		font-size: 0.6875rem;
-		color: var(--color-on-surface-variant);
 	}
 
 	.grid {
@@ -532,12 +471,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 
 		.syn-grid {
 			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
-	}
-
-	@media (max-width: 768px) {
-		.hide-sm {
-			display: none;
 		}
 	}
 </style>

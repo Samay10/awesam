@@ -1,6 +1,8 @@
 # AweSam
 
-A small-press journal by Samay Ashar — notes on systems, craft, and learning along the way.
+Technical digest by Samay Ashar — systems, craft, and research notes.
+
+This repo is **blog only**. The personal portfolio lives in the sibling folder `../portfolio` (GitHub: `Samay10/samay-portfolio`).
 
 ## Local development
 
@@ -18,8 +20,8 @@ npm run preview
 
 ## Navigation
 
-- **Digest** (`/digest`) — today’s short mix across every desk
-- **Sections** (`/sections`) — five boxes: Articles, Hacker News, X, GitHub, Papers
+- **Digest** (`/digest`) — The Technical Digest (2·2·3·3 bands)
+- Segmented feeds — HN · X · GitHub · Papers
 
 ## Writing
 
@@ -35,6 +37,8 @@ tags:
 draft: false
 ---
 ```
+
+Placeholder digest cards live in `src/data/digest.ts` until live APIs are wired.
 
 ## GitHub Pages
 

@@ -3,21 +3,34 @@ import type { DigestCard } from '../data/digest';
 
 interface Props {
 	card: DigestCard;
+	/** When false, title/CTA link out instead of opening the digest preview modal. */
+	preview?: boolean;
 }
 
-const { card } = Astro.props;
+const { card, preview = true } = Astro.props;
 const tagClass = `tag-${card.source}`;
 const spanClass = card.size === 'dense' ? 'dense' : 'wide';
+const linkAttrs = { href: card.href, target: '_blank', rel: 'noreferrer' };
 ---
 
 <article class:list={['card', spanClass]} data-source={card.source} data-id={card.id}>
 	<div class="top">
 		<div class="meta-row">
 			<span class:list={['badge', tagClass]}>{card.badge}</span>
-			<span class="when">{card.meta}</span>
+			{card.meta && <span class="when">{card.meta}</span>}
 		</div>
-		<button type="button" class="title" data-preview={card.id}>{card.title}</button>
-		<p class="abstract">{card.abstract}</p>
+		{
+			preview ? (
+				<button type="button" class="title" data-preview={card.id}>
+					{card.title}
+				</button>
+			) : (
+				<a class="title" {...linkAttrs}>
+					{card.title}
+				</a>
+			)
+		}
+		{card.abstract && <p class="abstract">{card.abstract}</p>}
 	</div>
 
 	{
@@ -58,10 +71,19 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		<div class="stats">
 			{card.stats.map((stat) => <span>{stat}</span>)}
 		</div>
-		<button type="button" class="cta" data-preview={card.id}>
-			{card.cta}
-			<span aria-hidden="true">→</span>
-		</button>
+		{
+			preview ? (
+				<button type="button" class="cta" data-preview={card.id}>
+					{card.cta}
+					<span aria-hidden="true">→</span>
+				</button>
+			) : (
+				<a class="cta" {...linkAttrs}>
+					{card.cta}
+					<span aria-hidden="true">→</span>
+				</a>
+			)
+		}
 	</div>
 </article>
 
@@ -139,6 +161,7 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		color: var(--color-on-surface);
 		line-height: 1.25;
 		transition: color 150ms linear;
+		text-decoration: none;
 	}
 
 	.wide .title {
@@ -267,6 +290,7 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		font-weight: 600;
 		cursor: pointer;
 		white-space: nowrap;
+		text-decoration: none;
 	}
 
 	.cta:hover {
