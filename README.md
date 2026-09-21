@@ -45,7 +45,8 @@ Placeholder cards in `src/data/digest.ts` are only used if live wires fail at bu
 Build-time fetches (no manual daily edits):
 
 - **Hacker News** — official Firebase API [`beststories`](https://github.com/HackerNews/API), soft-filtered toward systems/AI titles
-- GitHub / arXiv / X — same rebuild cadence
+- **X** — no free official API; curated AI/systems handles via [FxEmbed RSS](https://docs.fxembed.com/guide/advanced/rss-atom-feeds/), ranked for AI · systems · hardware · software relevance
+- GitHub / arXiv — same rebuild cadence
 
 GitHub Actions redeploys on every `main` push and on a **6-hour cron** (`0 0,6,12,18 * * *` UTC), so the site refreshes four times a day.
 

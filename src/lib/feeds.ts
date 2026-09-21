@@ -31,14 +31,96 @@ const HN_KEYWORDS = [
 	'security',
 ];
 
-const X_HANDLES = [
-	{ handle: 'karpathy', label: 'Andrej Karpathy' },
-	{ handle: 'sama', label: 'Sam Altman' },
-	{ handle: 'ylecun', label: 'Yann LeCun' },
-	{ handle: 'OpenAI', label: 'OpenAI' },
-	{ handle: 'ycombinator', label: 'Y Combinator' },
-	{ handle: 'github', label: 'GitHub' },
+const X_LISTEN = [
+	// Labs & orgs
+	{ handle: 'OpenAI', label: 'OpenAI', weight: 3 },
+	{ handle: 'AnthropicAI', label: 'Anthropic', weight: 3 },
+	{ handle: 'GoogleDeepMind', label: 'Google DeepMind', weight: 3 },
+	{ handle: 'AIatMeta', label: 'Meta AI', weight: 2 },
+	{ handle: 'nvidia', label: 'NVIDIA', weight: 3 },
+	{ handle: 'AMD', label: 'AMD', weight: 2 },
+	{ handle: 'intel', label: 'Intel', weight: 2 },
+	{ handle: 'PyTorch', label: 'PyTorch', weight: 2 },
+	{ handle: 'lmsysorg', label: 'LMSYS', weight: 2 },
+	// People
+	{ handle: 'karpathy', label: 'Andrej Karpathy', weight: 3 },
+	{ handle: 'sama', label: 'Sam Altman', weight: 2 },
+	{ handle: 'ylecun', label: 'Yann LeCun', weight: 3 },
+	{ handle: 'gdb', label: 'Greg Brockman', weight: 2 },
+	{ handle: 'demishassabis', label: 'Demis Hassabis', weight: 3 },
+	{ handle: 'AndrewYNg', label: 'Andrew Ng', weight: 2 },
+	{ handle: 'fchollet', label: 'François Chollet', weight: 2 },
+	{ handle: 'cHHillee', label: 'Horace He', weight: 2 },
+	{ handle: 'mitchellh', label: 'Mitchell Hashimoto', weight: 2 },
 ] as const;
+
+/** Tech signal words — AI, systems, hardware, software. */
+const X_RELEVANCE = [
+	'ai',
+	'llm',
+	'gpt',
+	'claude',
+	'gemini',
+	'model',
+	'agent',
+	'inference',
+	'training',
+	'transformer',
+	'diffusion',
+	'embedding',
+	'benchmark',
+	'eval',
+	'gpu',
+	'cuda',
+	'tpu',
+	'npu',
+	'chip',
+	'silicon',
+	'hardware',
+	'nvidia',
+	'amd',
+	'intel',
+	'kernel',
+	'compiler',
+	'distributed',
+	'systems',
+	'latency',
+	'throughput',
+	'rust',
+	'python',
+	'pytorch',
+	'cuda',
+	'open source',
+	'opensource',
+	'release',
+	'paper',
+	'arxiv',
+	'research',
+	'safety',
+	'alignment',
+	'devops',
+	'infrastructure',
+	'software',
+	'api',
+	'sdk',
+	'runtime',
+	'vector',
+	'database',
+	'orchestration',
+];
+
+const X_NOISE = [
+	'giveaway',
+	'follow me',
+	'follow back',
+	'nft',
+	'crypto pump',
+	'airdrop',
+	'meme coin',
+	'subscribe for',
+	'only fans',
+];
+
 
 function isoDate(daysAgo: number) {
 	const date = new Date();
@@ -47,13 +129,39 @@ function isoDate(daysAgo: number) {
 }
 
 function clean(text: string, max = 220) {
-	const next = text.replace(/\s+/g, ' ').trim();
+	const next = decodeXml(text).replace(/\s+/g, ' ').trim();
 	return next.length > max ? `${next.slice(0, max - 1)}…` : next;
+}
+
+function decodeXml(text: string) {
+	return text
+		.replace(/<!\[CDATA\[|\]\]>/g, '')
+		.replace(/&nbsp;/gi, ' ')
+		.replace(/&apos;/g, "'")
+		.replace(/&#39;/g, "'")
+		.replace(/&quot;/g, '"')
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&amp;/g, '&');
 }
 
 function matchesAny(text: string, words: string[]) {
 	const hay = text.toLowerCase();
 	return words.some((word) => hay.includes(word));
+}
+
+function relevanceScore(text: string, weight = 1) {
+	const hay = text.toLowerCase();
+	if (matchesAny(hay, X_NOISE)) return -100;
+	let score = weight;
+	for (const word of X_RELEVANCE) {
+		if (hay.includes(word)) score += word.length > 3 ? 3 : 2;
+	}
+	// Prefer concrete development language over vague hype.
+	if (/\b(releas|ship|launch|announce|open[- ]sourc|paper|benchmark|latency|throughput|kernel|gpu|model)\w*/i.test(text)) {
+		score += 4;
+	}
+	return score;
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> {
@@ -213,56 +321,91 @@ function parseFeedNodes(xml: string) {
 	return rss.length ? rss : parseAtomEntries(xml);
 }
 
-async function fetchHandleFeed(handle: string, label: string): Promise<FeedItem[]> {
+function statusIdFromHref(href: string, handle: string, index: number) {
+	const match = href.match(/status\/(\d+)/i);
+	return match ? `x-${match[1]}` : `x-${handle}-${index}`;
+}
+
+/**
+ * X has no free public API for new apps (pay-per-use only).
+ * We syndicate curated handles via FxEmbed RSS: https://docs.fxembed.com/guide/advanced/rss-atom-feeds/
+ */
+async function fetchHandleFeed(
+	handle: string,
+	label: string,
+	weight: number,
+): Promise<FeedItem[]> {
 	const urls = [
+		`https://fxtwitter.com/${handle}/feed.xml?count=8&safe=1`,
+		`https://fixupx.com/${handle}/feed.xml?count=8&safe=1`,
 		`https://rsshub.app/twitter/user/${handle}`,
-		`https://nitter.privacydev.net/${handle}/rss`,
-		`https://nitter.net/${handle}/rss`,
 	];
 
 	for (const url of urls) {
 		const xml = await fetchText(url);
 		if (!xml || (!xml.includes('<item') && !xml.includes('<entry'))) continue;
+
 		return parseFeedNodes(xml)
-			.slice(0, 4)
+			.slice(0, 8)
 			.map((node, index) => {
-				const title = xmlTag(node, 'title') || xmlTag(node, 'description');
+				const rawTitle = xmlTag(node, 'title') || xmlTag(node, 'description');
+				const rawDesc = xmlTag(node, 'description') || rawTitle;
+				const title = clean(rawTitle.replace(/^RT\s+@?\w+:\s*/i, ''), 160);
+				const summary = clean(rawDesc.replace(/<[^>]+>/g, ' '), 220);
 				const href =
 					xmlTag(node, 'link') ||
 					node.match(/<link[^>]+href="([^"]+)"/i)?.[1] ||
 					`https://x.com/${handle}`;
-				const date = (xmlTag(node, 'pubDate') || xmlTag(node, 'published') || '').slice(0, 16);
+				const normalizedHref = href.startsWith('http') ? href.replace('twitter.com', 'x.com') : `https://x.com/${handle}`;
+				const ownPost = new RegExp(`x\\.com/${handle}/status/`, 'i').test(normalizedHref);
+				if (!ownPost) return null;
+				const date = (xmlTag(node, 'pubDate') || xmlTag(node, 'published') || '').slice(0, 25);
+				const score = relevanceScore(`${title} ${summary}`, weight);
 				return {
-					id: `x-${handle}-${index}`,
-					title: clean(title.replace(/^RT\s+/, ''), 160),
-					href: href.startsWith('http') ? href : `https://x.com/${handle}`,
+					id: statusIdFromHref(normalizedHref, handle, index),
+					title,
+					href: normalizedHref,
 					source: `@${handle}`,
 					meta: [label, date].filter(Boolean).join(' · '),
-				};
+					summary,
+					score,
+				} satisfies FeedItem;
 			})
-			.filter((item) => item.title);
+			.filter((item): item is FeedItem => Boolean(item?.title && (item.score ?? 0) >= 5));
 	}
 
 	return [];
 }
 
 export async function fetchXTimeline(limit = 12): Promise<FeedItem[]> {
-	const batches = await Promise.all(X_HANDLES.map(({ handle, label }) => fetchHandleFeed(handle, label)));
-	const live = batches.flat().filter((item) => item.title && item.href);
+	const batches = await Promise.all(
+		X_LISTEN.map(({ handle, label, weight }) => fetchHandleFeed(handle, label, weight)),
+	);
+
+	const seen = new Set<string>();
+	const live = batches
+		.flat()
+		.filter((item) => {
+			if (!item.title || !item.href) return false;
+			if (seen.has(item.id)) return false;
+			seen.add(item.id);
+			return true;
+		})
+		.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
 	if (live.length > 0) {
 		return live.slice(0, limit);
 	}
 
-	// X has no public list API — curated listen list with deep links so the section stays useful.
-	return X_HANDLES.map(({ handle, label }, index) => ({
+	// Syndication quiet — keep section useful with the curated listen list.
+	return X_LISTEN.map(({ handle, label }, index) => ({
 		id: `x-listen-${handle}`,
 		title: `Follow ${label} on X`,
 		href: `https://x.com/${handle}`,
 		source: `@${handle}`,
-		meta: 'Curated listen list',
+		meta: 'Curated AI / systems listen list',
 		summary: 'Live X syndication was quiet — open the profile for the latest posts.',
-		score: X_HANDLES.length - index,
+		score: X_LISTEN.length - index,
 	}));
 }
 
