@@ -16,12 +16,6 @@ export function readPath(id: string) {
 	return `${base}reads/${id}/`;
 }
 
-export function coverSrc(image: string | null | undefined) {
-	if (!image) return null;
-	const base = import.meta.env.BASE_URL;
-	return `${base}${image.replace(/^\//, '')}`;
-}
-
 export function storyToCard(story: Story, size: DigestCard['size']): DigestCard {
 	return {
 		id: story.id,
@@ -32,7 +26,7 @@ export function storyToCard(story: Story, size: DigestCard['size']): DigestCard 
 		abstract: story.lede,
 		href: readPath(story.id),
 		originalHref: story.originalHref,
-		image: coverSrc(story.image),
+		image: null,
 		cta: 'Read',
 		stats: story.stats,
 		size,

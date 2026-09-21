@@ -56,15 +56,14 @@ GitHub Actions redeploys on every `main` push and on a **6-hour cron** (`0 0,6,1
 Cards do **not** paste the original post. On every refresh the build:
 
 1. Pulls the live wires
-2. Asks Groq **Llama 3.1 8B Instant** (free tier, no card) for an original lede + 2–3 minute read
-3. Asks **Pollinations FLUX** for a cover (free; no key required, slower without one)
-4. Publishes an on-site page at `/reads/<id>/` with a link back to the original at the end
+2. Asks Groq **Llama 3.3 70B** (free tier; falls back to GPT-OSS / Qwen if needed) for an original lede + 2–3 minute read
+3. Publishes an on-site page at `/reads/<id>/` with a link back to the original at the end
 
 GitHub **Hot Repos** go through this pipeline. The Big Guns PR boxes stay live-updating and are not rewritten.
 
-Hugging Face Inference Providers only include **$0.10/month** on a free account, which cannot cover image generation. Groq + Pollinations stay at $0.
+Images are off for now — text quality first.
 
-Set `GROQ_API_KEY` locally in `.env` and as a GitHub Actions secret named **`GROQ_API_KEY`**. Optional: `POLLINATIONS_KEY` if Actions IP rate limits kick in.
+Set `GROQ_API_KEY` locally in `.env` and as a GitHub Actions secret named **`GROQ_API_KEY`**.
 
 ## GitHub Pages
 

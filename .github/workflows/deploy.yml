@@ -33,16 +33,14 @@ jobs:
         with:
           path: |
             .cache/stories
-            .cache/covers
-          key: enrich-v2-${{ github.run_id }}
+          key: enrich-v3-${{ github.run_id }}
           restore-keys: |
-            enrich-v2-
+            enrich-v3-
       - name: Install
         run: npm ci
       - name: Build
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          POLLINATIONS_KEY: ${{ secrets.POLLINATIONS_KEY }}
         run: npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

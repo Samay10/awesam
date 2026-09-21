@@ -12,11 +12,6 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 
 <article class:list={['card', spanClass]} data-source={card.source} data-id={card.id}>
 	<a class="hit" href={card.href}>
-		{
-			card.image && (
-				<img class="cover" src={card.image} alt="" width="1024" height="576" loading="lazy" />
-			)
-		}
 		<div class="top">
 			<div class="meta-row">
 				<span class:list={['badge', tagClass]}>{card.badge}</span>
@@ -44,14 +39,14 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		flex-direction: column;
 		justify-content: space-between;
 		gap: 0.875rem;
-		padding: 0;
-		overflow: hidden;
+		padding: 1.5rem;
 		border-radius: 0.25rem;
 		background: var(--color-surface-light);
 		transition: background 150ms linear;
 	}
 
 	.card.dense {
+		padding: 1rem;
 		gap: 0.65rem;
 	}
 
@@ -67,20 +62,8 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		min-width: 0;
 	}
 
-	.cover {
-		display: block;
-		width: 100%;
-		aspect-ratio: 16 / 9;
-		object-fit: cover;
-		background: var(--color-surface-container);
-	}
-
 	.top {
-		padding: 1.35rem 1.5rem 0;
-	}
-
-	.dense .top {
-		padding: 1rem 1rem 0;
+		padding: 0;
 	}
 
 	.meta-row {
@@ -167,14 +150,10 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem;
-		padding: 0.25rem 1.5rem 1.35rem;
+		padding-top: 0.25rem;
 		font-family: var(--font-mono);
 		font-size: 0.6875rem;
 		color: var(--color-on-surface-variant);
-	}
-
-	.dense .foot {
-		padding: 0.15rem 1rem 1rem;
 	}
 
 	.stats {

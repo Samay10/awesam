@@ -1,9 +1,9 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { DigestSource } from '../data/digest';
 import { CATALOG_PATH, storySlug, type Story, type StoryCatalog } from './catalog';
-import { TEXT_MODEL, chatCompletion, generateCoverPng, hasTextKey, seedFromId } from './ai';
+import { TEXT_MODEL, chatCompletion, hasTextKey } from './ai';
 import {
 	fetchHackerNews,
 	fetchHottestGithubToday,
@@ -12,58 +12,51 @@ import {
 	type FeedItem,
 } from './feeds';
 
-/** Bump to invalidate bad fallback caches from the first deploy. */
-const PROMPT_VERSION = 'v2';
+/** Bump to invalidate fallback/slop caches. */
+const PROMPT_VERSION = 'v3-text';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
-const COVER_CACHE = path.join(process.cwd(), '.cache/covers');
-const PUBLIC_COVERS = path.join(process.cwd(), 'public/covers');
-
 const TEXT_CONCURRENCY = 1;
-const IMAGE_CONCURRENCY = 1;
 
-const SHARED_RULES = `You write original briefings for AweSam, a technical digest.
+const SHARED_RULES = `You are a sharp human editor for AweSam — a technical digest for systems, AI, and programming people.
+
+Write like a curious senior engineer at a laptop late at night: specific, opinionated, alive. Not like a chatbot.
 
 Hard rules:
-- Never copy, quote, or closely paraphrase the source. Rewrite as a new editorial briefing.
-- Do not invent numbers, benchmarks, quotes, authors, or results absent from the source notes.
-- If notes are thin, say what is known and what a careful engineer should verify — do not fabricate.
-- Voice: precise, concrete, slightly literary. Second person is welcome. No hype, no "delve", no "in today's fast-paced world", no "A closer look at…".
-- Return ONLY valid JSON (no markdown fences) with exactly these keys:
+- Never copy, quote, or closely paraphrase the source. Transform it.
+- Do not invent numbers, benchmarks, quotes, authors, or results missing from the notes.
+- If notes are thin, be honest about uncertainty — still make the briefing vivid and useful.
+- Ban AI slop: no "A closer look at", "delve", "landscape", "in today's world", "it's important to note", "robust solution", "game-changer", "leverage", "unlock", "empower".
+- Ban the phrases "on the wire", "live signal is thin", "model was unavailable", "treat the original as the source of truth".
+- Prefer concrete nouns, verbs, and stakes over adjectives.
+- Length: a 2–3 minute read (~320–480 words across 3–5 short paragraphs).
+
+Return ONLY valid JSON (no markdown fences):
 {
-  "lede": "45-70 words for the card. Specific stakes for a systems/AI engineer.",
-  "whyRead": "one crisp sentence",
-  "paragraphs": ["3 to 5 short paragraphs totaling ~320-480 words"],
-  "imagePrompt": "one concrete visual sentence unique to THIS story: objects, setting, mood. No text, letters, logos, UI, or watermarks.",
-  "wantImage": true
+  "lede": "50-80 words. Hook a senior engineer. Specific stakes.",
+  "whyRead": "one crisp human sentence",
+  "paragraphs": ["paragraph 1", "paragraph 2", "paragraph 3", "..."]
 }`;
 
 const DESK_BRIEF: Record<DigestSource, string> = {
 	hn: `Desk: Hacker News.
-Write like a sharp HN commenter who cares about systems, privacy, AI, and infrastructure.
-Focus on why the story is rising, the technical or policy implication, and what to inspect in the discussion.
-Set wantImage true ONLY if the story is visually distinctive (hardware, architecture, research artifact, security incident with a clear visual metaphor). Otherwise false.`,
+Angle: why this is climbing, the systems/privacy/AI implication, and what to pressure-test in the thread.
+Sound like someone who reads HN for craft, not karma.`,
 	x: `Desk: X / lab signal.
-Treat the post as a short signal, not a paper. Expand carefully into what released, claimed, or linked — without inventing paper results.
-Keep the briefing shorter if the source is a tweet (still 3 paragraphs minimum).
-Set wantImage true ONLY for launches, demos, hardware, papers, or strong visual metaphors. Routine commentary → wantImage false.`,
-	github: `Desk: GitHub hot repo.
-Explain what the repo does, who it is for, and why it is rising now. Use description + stars as soft signals only.
-Always set wantImage true — one unique cover for the tool/domain.`,
+Angle: what actually shipped or was claimed. Expand carefully — do not invent a paper from a tweet.
+Keep energy high; keep claims tight.`,
+	github: `Desk: rising GitHub repo.
+Angle: what it does, who it is for, why it is getting stars now. Make a builder want to clone it — or know why to skip it.`,
 	papers: `Desk: research paper.
-Explain the problem, the approach, and why a practitioner should care. Stay faithful to the abstract notes.
-Always set wantImage true — one unique research illustration.`,
+Angle: problem → approach → why a practitioner should care. Stay faithful to the abstract. Make the idea feel urgent, not academic-flat.`,
 	articles: `Desk: article.
-Summarize the argument and stakes for an engineering reader.
-Set wantImage true when a clear visual metaphor exists.`,
+Angle: the argument and the stakes for an engineering reader.`,
 };
 
 type Draft = {
 	lede: string;
 	whyRead: string;
 	paragraphs: string[];
-	imagePrompt: string;
-	wantImage: boolean;
 };
 
 type CacheRow = {
@@ -71,7 +64,6 @@ type CacheRow = {
 	title: string;
 	version: string;
 	draft: Draft;
-	imageFile: string | null;
 };
 
 function statsFromMeta(meta: string) {
@@ -86,42 +78,14 @@ function minutesFor(paragraphs: string[]) {
 	return Math.max(2, Math.min(3, Math.round(words / 200) || 2));
 }
 
+const SLOP =
+	/A closer look at|on the wire|live signal is thin|model was unavailable|systems-minded reader|source of truth and use this note|delve|game-changer|in today's/i;
+
 function isWeakDraft(draft: Draft | null | undefined, title: string) {
 	if (!draft?.lede || draft.paragraphs.length < 2) return true;
-	if (/^A closer look at /i.test(draft.lede)) return true;
-	if (draft.lede.includes(title) && draft.lede.includes('systems-minded reader')) return true;
-	if (/Quiet editorial still life about software craft/i.test(draft.imagePrompt)) return true;
+	if (SLOP.test(draft.lede) || draft.paragraphs.some((p) => SLOP.test(p))) return true;
+	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return true;
 	return false;
-}
-
-function fallbackDraft(item: FeedItem, source: DigestSource): Draft {
-	const base = item.summary?.trim();
-	const lede = (base || `${item.title} is on the wire — treat the original as the source of truth and use this note as a map of what to verify.`)
-		.replace(/\s+/g, ' ')
-		.slice(0, 280);
-	return {
-		lede,
-		whyRead: `Open the original ${item.source} item after this briefing if the claim matters to your stack.`,
-		paragraphs: [
-			lede,
-			`The live signal is thin or the model was unavailable, so this note stays conservative. Do not treat it as a substitute for the primary ${item.source} post.`,
-			`Check the original link at the end for discussion, numbers, and updates before you act on it.`,
-		],
-		imagePrompt: uniqueFallbackVisual(item, source),
-		wantImage: source === 'papers' || source === 'github',
-	};
-}
-
-function uniqueFallbackVisual(item: FeedItem, source: DigestSource) {
-	const motif =
-		source === 'papers'
-			? 'research notebook, chalk diagrams, soft lamp'
-			: source === 'github'
-				? 'workbench with tools and circuit boards'
-				: source === 'x'
-					? 'signal beacon over a night city grid'
-					: 'newsroom desk with typescript pages and ink';
-	return `${motif}, inspired by the idea of “${item.title.slice(0, 80)}”, editorial illustration, unique composition`;
 }
 
 function extractJson(text: string): Draft | null {
@@ -129,7 +93,7 @@ function extractJson(text: string): Draft | null {
 	const end = text.lastIndexOf('}');
 	if (start < 0 || end <= start) return null;
 	try {
-		const parsed = JSON.parse(text.slice(start, end + 1)) as Partial<Draft> & { wantImage?: boolean };
+		const parsed = JSON.parse(text.slice(start, end + 1)) as Partial<Draft>;
 		const paragraphs = Array.isArray(parsed.paragraphs)
 			? parsed.paragraphs.map((p) => String(p).trim()).filter(Boolean)
 			: [];
@@ -138,8 +102,6 @@ function extractJson(text: string): Draft | null {
 			lede: String(parsed.lede).trim(),
 			whyRead: String(parsed.whyRead ?? '').trim(),
 			paragraphs,
-			imagePrompt: String(parsed.imagePrompt ?? '').trim(),
-			wantImage: Boolean(parsed.wantImage),
 		};
 	} catch {
 		return null;
@@ -161,7 +123,7 @@ async function writeCache(row: CacheRow) {
 }
 
 function buildUserPrompt(item: FeedItem, source: DigestSource) {
-	const notes = [
+	return [
 		`PROMPT_VERSION: ${PROMPT_VERSION}`,
 		`Story id: ${item.id}`,
 		`Source desk: ${source}`,
@@ -169,95 +131,43 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 		`Title: ${item.title}`,
 		item.summary ? `Source notes:\n${item.summary}` : 'Source notes: title/meta only — do not invent an abstract.',
 		item.meta ? `Signals: ${item.meta}` : '',
-		`Original URL (for orientation only, do not scrape): ${item.href}`,
+		`URL (orientation only): ${item.href}`,
 		DESK_BRIEF[source],
-		`Write a briefing that could only fit THIS title. Make imagePrompt specific to this story's domain (different objects than a generic sakura still life).`,
+		`Write a briefing that could only fit this title. Make it exciting and human. No generic filler.`,
 	]
 		.filter(Boolean)
 		.join('\n\n');
-
-	return notes;
 }
 
-async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft> {
+async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft | null> {
 	try {
 		const raw = await chatCompletion(
 			[
 				{ role: 'system', content: SHARED_RULES },
 				{ role: 'user', content: buildUserPrompt(item, source) },
 			],
-			{ maxTokens: 1600, temperature: 0.45, json: true },
+			{ maxTokens: 1800, temperature: 0.55, json: true },
 		);
 		const parsed = extractJson(raw);
-		if (!parsed || isWeakDraft(parsed, item.title)) return fallbackDraft(item, source);
-		if (!parsed.imagePrompt) parsed.imagePrompt = uniqueFallbackVisual(item, source);
+		if (!parsed || isWeakDraft(parsed, item.title)) {
+			console.warn(`[enrich] weak draft for ${item.id}; retrying once`);
+			const retry = await chatCompletion(
+				[
+					{ role: 'system', content: SHARED_RULES },
+					{
+						role: 'user',
+						content: `${buildUserPrompt(item, source)}\n\nPrevious attempt was too generic. Rewrite with sharper specifics and zero filler.`,
+					},
+				],
+				{ maxTokens: 1800, temperature: 0.65, json: true },
+			);
+			const second = extractJson(retry);
+			if (!second || isWeakDraft(second, item.title)) return null;
+			return second;
+		}
 		return parsed;
 	} catch (error) {
 		console.warn(`[enrich] text failed for ${item.id}:`, error instanceof Error ? error.message : error);
-		return fallbackDraft(item, source);
-	}
-}
-
-function coverPrompt(item: FeedItem, draft: Draft, source: DigestSource) {
-	const subject = draft.imagePrompt || uniqueFallbackVisual(item, source);
-	return [
-		'Unique editorial cover illustration for one engineering newspaper story.',
-		'Style: Japanese washi, sumi ink, soft sakura accents, warm ivory light — but the SUBJECT must dominate and differ per story.',
-		'No photoreal faces, no text, no letters, no logos, no watermark, no UI chrome.',
-		`Story title cue: ${item.title.slice(0, 90)}`,
-		`Subject: ${subject}`,
-	].join(' ');
-}
-
-function shouldGenerateImage(source: DigestSource, draft: Draft, item: FeedItem) {
-	if (source === 'papers' || source === 'github') return true;
-	if (source === 'hn') {
-		if (draft.wantImage) return true;
-		const score = item.score ?? 0;
-		return score >= 400 || /ai|llm|gpu|kernel|security|database|distributed|rust|paper|arxiv/i.test(item.title);
-	}
-	if (source === 'x') {
-		if (!draft.wantImage) return false;
-		const words = `${item.title} ${item.summary ?? ''}`.split(/\s+/).length;
-		return words >= 18 || /release|launch|paper|model|gpu|chip|demo|open.?source/i.test(`${item.title} ${item.summary ?? ''}`);
-	}
-	return Boolean(draft.wantImage);
-}
-
-async function copyCover(from: string, id: string): Promise<string | null> {
-	try {
-		await mkdir(PUBLIC_COVERS, { recursive: true });
-		const dest = path.join(PUBLIC_COVERS, `${id}.png`);
-		await copyFile(from, dest);
-		return `covers/${id}.png`;
-	} catch {
-		return null;
-	}
-}
-
-async function ensureCover(item: FeedItem, draft: Draft, source: DigestSource, cached: CacheRow | null): Promise<string | null> {
-	const id = storySlug(item.id);
-	const seed = seedFromId(`${PROMPT_VERSION}:${item.id}:${item.title}`);
-
-	if (
-		cached?.version === PROMPT_VERSION &&
-		cached.title === item.title &&
-		cached.imageFile &&
-		!isWeakDraft(cached.draft, item.title)
-	) {
-		const cachedPath = path.join(COVER_CACHE, path.basename(cached.imageFile));
-		const copied = await copyCover(cachedPath, id);
-		if (copied) return copied;
-	}
-
-	const dest = path.join(COVER_CACHE, `${id}.png`);
-	try {
-		await mkdir(COVER_CACHE, { recursive: true });
-		const ok = await generateCoverPng(coverPrompt(item, draft, source), dest, { seed });
-		if (!ok) return null;
-		return copyCover(dest, id);
-	} catch (error) {
-		console.warn(`[enrich] image failed for ${item.id}:`, error instanceof Error ? error.message : error);
 		return null;
 	}
 }
@@ -275,7 +185,7 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise
 	return out;
 }
 
-async function enrichItem(item: FeedItem, source: DigestSource, withImagePass: boolean): Promise<Story> {
+async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story | null> {
 	const id = storySlug(item.id);
 	const cached = await readCache(id);
 	const cacheOk =
@@ -284,13 +194,9 @@ async function enrichItem(item: FeedItem, source: DigestSource, withImagePass: b
 		!isWeakDraft(cached.draft, item.title);
 
 	const draft = cacheOk ? cached!.draft : await draftFromModel(item, source);
-	const wantCover = shouldGenerateImage(source, draft, item);
-
-	let image: string | null = null;
-	if (withImagePass && wantCover) {
-		image = await ensureCover(item, draft, source, cacheOk ? cached : null);
-	} else if (!withImagePass && cacheOk && cached?.imageFile && wantCover) {
-		image = await copyCover(path.join(COVER_CACHE, path.basename(cached.imageFile)), id);
+	if (!draft) {
+		console.warn(`[enrich] skipping ${item.id} — no usable briefing`);
+		return null;
 	}
 
 	await writeCache({
@@ -298,10 +204,8 @@ async function enrichItem(item: FeedItem, source: DigestSource, withImagePass: b
 		title: item.title,
 		version: PROMPT_VERSION,
 		draft,
-		imageFile: image ? `${id}.png` : wantCover ? cached?.imageFile ?? null : null,
 	});
 
-	const paragraphs = draft.paragraphs.length ? draft.paragraphs : fallbackDraft(item, source).paragraphs;
 	const badge =
 		source === 'papers' || source === 'x'
 			? item.source
@@ -318,11 +222,11 @@ async function enrichItem(item: FeedItem, source: DigestSource, withImagePass: b
 		title: item.title,
 		lede: draft.lede,
 		whyRead: draft.whyRead,
-		paragraphs,
+		paragraphs: draft.paragraphs,
 		originalHref: item.href,
-		image: wantCover ? image : null,
+		image: null,
 		stats: statsFromMeta(item.meta),
-		meta: `${minutesFor(paragraphs)} min read`,
+		meta: `${minutesFor(draft.paragraphs)} min read`,
 		sourceLabel: item.source,
 	};
 }
@@ -342,6 +246,21 @@ function take(pool: FeedItem[], source: DigestSource, n: number, into: Sourced[]
 export async function runEnrichment(): Promise<StoryCatalog> {
 	console.log(`[enrich] text=${TEXT_MODEL} version=${PROMPT_VERSION} groq=${hasTextKey() ? 'yes' : 'no'}`);
 
+	if (!hasTextKey()) {
+		console.warn('[enrich] GROQ_API_KEY missing — writing empty catalog');
+		const empty: StoryCatalog = {
+			generatedAt: new Date().toISOString(),
+			digest: [],
+			hn: [],
+			x: [],
+			github: [],
+			papers: [],
+		};
+		await mkdir(path.dirname(CATALOG_PATH), { recursive: true });
+		await writeFile(CATALOG_PATH, JSON.stringify(empty, null, 2));
+		return empty;
+	}
+
 	const [hn, github, papers, x] = await Promise.all([
 		fetchHackerNews(10),
 		fetchHottestGithubToday(6),
@@ -359,15 +278,11 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	const unique = new Map<string, Sourced>();
 	for (const job of jobs) unique.set(storySlug(job.item.id), job);
 
-	const drafted = await mapPool([...unique.values()], TEXT_CONCURRENCY, (job) =>
-		enrichItem(job.item, job.source, false),
-	);
-	const withCovers = await mapPool(drafted, IMAGE_CONCURRENCY, async (story) => {
-		const job = unique.get(story.id);
-		if (!job) return story;
-		return enrichItem(job.item, job.source, true);
-	});
-	const byId = new Map(withCovers.map((story) => [story.id, story]));
+	const enriched = (
+		await mapPool([...unique.values()], TEXT_CONCURRENCY, (job) => enrichItem(job.item, job.source))
+	).filter((row): row is Story => Boolean(row));
+
+	const byId = new Map(enriched.map((story) => [story.id, story]));
 
 	const pick = (items: FeedItem[]) =>
 		items.map((item) => byId.get(storySlug(item.id))).filter((row): row is Story => Boolean(row));
@@ -390,8 +305,7 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 
 	await mkdir(path.dirname(CATALOG_PATH), { recursive: true });
 	await writeFile(CATALOG_PATH, JSON.stringify(catalog, null, 2));
-	const withImages = withCovers.filter((s) => s.image).length;
-	console.log(`[enrich] wrote ${withCovers.length} stories (digest ${catalog.digest.length}, covers ${withImages})`);
+	console.log(`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length})`);
 	return catalog;
 }
 
