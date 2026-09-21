@@ -75,9 +75,15 @@ const originalLabel =
 		padding: clamp(2rem, 6vw, 3.5rem) 0 clamp(4rem, 8vw, 6rem);
 	}
 
+	.read > .container-page {
+		display: grid;
+		justify-items: center;
+	}
+
 	.back {
+		justify-self: start;
 		display: inline-block;
-		margin-bottom: 1.75rem;
+		margin-bottom: 1.25rem;
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		letter-spacing: 0.08em;
@@ -85,10 +91,16 @@ const originalLabel =
 	}
 
 	.head {
+		position: relative;
+		z-index: 1;
+		width: 100%;
 		max-width: 42rem;
-		margin-bottom: 2rem;
+		margin: 0 auto;
+		padding: 1.25rem 0 0.5rem;
 		display: grid;
-		gap: 0.9rem;
+		justify-items: center;
+		text-align: center;
+		gap: 1rem;
 	}
 
 	.meta {
@@ -108,12 +120,13 @@ const originalLabel =
 	h1 {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: clamp(1.65rem, 4.2vw, 2.45rem);
-		font-weight: 650;
-		letter-spacing: -0.03em;
-		line-height: 1.18;
+		font-size: clamp(1.85rem, 5vw, 2.65rem);
+		font-weight: 600;
+		letter-spacing: -0.02em;
+		line-height: 1.15;
 		overflow-wrap: anywhere;
-		text-wrap: pretty;
+		text-wrap: balance;
+		max-width: 38rem;
 	}
 
 	.dek {
@@ -123,11 +136,15 @@ const originalLabel =
 		color: var(--color-on-surface-variant);
 		font-family: var(--font-body);
 		font-style: normal;
-		max-width: 38rem;
+		max-width: 34rem;
 	}
 
 	.body {
+		width: 100%;
 		max-width: 40rem;
+		margin: 0 auto;
+		padding: 2.5rem 0 0;
+		text-align: left;
 	}
 
 	.body p {
@@ -140,7 +157,7 @@ const originalLabel =
 
 	.takeaway {
 		margin-top: 1.75rem !important;
-		padding: 1rem 0 0;
+		padding: 1.15rem 0 0;
 		border-top: 1px solid color-mix(in srgb, var(--color-outline-variant) 55%, transparent);
 		font-size: 1.05rem !important;
 		line-height: 1.65 !important;
@@ -158,13 +175,15 @@ const originalLabel =
 	}
 
 	.origin {
+		width: 100%;
 		max-width: 40rem;
-		margin-top: 2.25rem;
+		margin: 2.5rem auto 0;
 		padding: 1.05rem 1.15rem;
 		border-radius: 0.3rem;
 		background: var(--color-surface-container-low);
 		display: grid;
 		gap: 0.85rem;
+		text-align: left;
 	}
 
 	.origin p {
