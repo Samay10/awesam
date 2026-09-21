@@ -1,7 +1,7 @@
 /** Strong free Groq model for prose. Fallbacks if one is missing/rate-limited. */
 export const TEXT_MODELS = (
 	process.env.TEXT_MODELS ??
-	'llama-3.3-70b-versatile,openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3-32b'
+	'llama-3.3-70b-versatile,openai/gpt-oss-120b,qwen/qwen3-32b'
 )
 	.split(',')
 	.map((value) => value.trim())

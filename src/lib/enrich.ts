@@ -144,6 +144,10 @@ function minParagraphs(source: DigestSource) {
 	return source === 'x' ? 3 : 4;
 }
 
+function minWords(source: DigestSource) {
+	return source === 'x' ? 140 : 280;
+}
+
 function isWeakDraft(draft: Draft | null | undefined, title: string, source: DigestSource) {
 	if (!draft?.lede || !draft.takeaway) return true;
 	if (draft.paragraphs.length < minParagraphs(source)) return true;
@@ -151,9 +155,47 @@ function isWeakDraft(draft: Draft | null | undefined, title: string, source: Dig
 	if (SLOP.test(blob)) return true;
 	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return true;
 	const words = [...draft.paragraphs, draft.takeaway].join(' ').split(/\s+/).filter(Boolean).length;
-	if (source !== 'x' && words < 380) return true;
-	if (source === 'x' && words < 180) return true;
+	if (words < minWords(source)) return true;
 	return false;
+}
+
+/** Accept a slightly short draft rather than dropping the story entirely. */
+function isUsableDraft(draft: Draft | null | undefined, title: string) {
+	if (!draft?.lede || draft.paragraphs.length < 2 || !draft.takeaway) return false;
+	const blob = [draft.lede, draft.whyRead, draft.takeaway, ...draft.paragraphs].join('\n');
+	if (SLOP.test(blob)) return false;
+	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return false;
+	return true;
+}
+
+function deskFallback(item: FeedItem, source: DigestSource): Draft {
+	const note = cleanProse(item.summary || '');
+	const title = cleanProse(item.title);
+	const meta = cleanProse(item.meta || '');
+	const lede =
+		note ||
+		`${title}${meta ? ` — ${meta}` : ''}. Rising on ${item.source}; open the original for implementation detail.`;
+	const base = note || `${title} is circulating on ${item.source}${meta ? ` (${meta})` : ''}.`;
+	const paragraphs = [
+		base,
+		`What we can verify from the feed: ${title}. ${note ? 'The listing description is thin, so treat numbers and claims as provisional until you check the primary source.' : 'No long abstract shipped with the listing — check the linked page for the real detail.'}`,
+		`Why it showed up here: ${source === 'github' ? 'star velocity and tech keywords' : source === 'papers' ? 'venue/lab signal and recency' : 'ranking and relevance filters'} put it in the wire. ${meta ? `Signals: ${meta}.` : ''}`,
+		`If you dig in, start with the mechanism or API surface, then decide whether the claim holds for your stack. Skip the hype layer.`,
+	]
+		.map(cleanProse)
+		.filter(Boolean)
+		.slice(0, Math.max(4, minParagraphs(source)));
+
+	while (paragraphs.length < minParagraphs(source)) {
+		paragraphs.push(`Primary link: ${item.href}`);
+	}
+
+	return {
+		lede: lede.slice(0, 420),
+		whyRead: meta || `${item.source} signal`,
+		paragraphs,
+		takeaway: `Open the original before you trust details beyond the listing — ${title} is on the wire for a reason, but the feed blurb is not a full brief.`,
+	};
 }
 
 function extractJson(text: string): Draft | null {
@@ -208,6 +250,7 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 
 async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft | null> {
 	const maxTokens = source === 'x' ? 1200 : 2400;
+	let salvage: Draft | null = null;
 	try {
 		const raw = await chatCompletion(
 			[
@@ -217,26 +260,28 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 			{ maxTokens, temperature: 0.55, json: true },
 		);
 		const parsed = extractJson(raw);
-		if (!parsed || isWeakDraft(parsed, item.title, source)) {
-			console.warn(`[enrich] weak draft for ${item.id}; retrying once`);
-			const retry = await chatCompletion(
-				[
-					{ role: 'system', content: SHARED_RULES },
-					{
-						role: 'user',
-						content: `${buildUserPrompt(item, source)}\n\nPrevious draft was too short, too meta, or AI-slop. Rewrite as a dense 3–4 minute technical note with ≥${minParagraphs(source)} real paragraphs and a sharp takeaway. Lead with the mechanism.`,
-					},
-				],
-				{ maxTokens, temperature: 0.65, json: true },
-			);
-			const second = extractJson(retry);
-			if (!second || isWeakDraft(second, item.title, source)) return null;
-			return second;
-		}
-		return parsed;
+		if (parsed && isUsableDraft(parsed, item.title)) salvage = parsed;
+		if (parsed && !isWeakDraft(parsed, item.title, source)) return parsed;
+
+		console.warn(`[enrich] weak draft for ${item.id}; retrying once`);
+		const retry = await chatCompletion(
+			[
+				{ role: 'system', content: SHARED_RULES },
+				{
+					role: 'user',
+					content: `${buildUserPrompt(item, source)}\n\nPrevious draft was too short, too meta, or AI-slop. Rewrite as a dense 3–4 minute technical note with ≥${minParagraphs(source)} real paragraphs and a sharp takeaway. Lead with the mechanism.`,
+				},
+			],
+			{ maxTokens, temperature: 0.65, json: true },
+		);
+		const second = extractJson(retry);
+		if (second && !isWeakDraft(second, item.title, source)) return second;
+		if (second && isUsableDraft(second, item.title)) return second;
+		if (salvage) return salvage;
+		return null;
 	} catch (error) {
 		console.warn(`[enrich] text failed for ${item.id}:`, error instanceof Error ? error.message : error);
-		return null;
+		return salvage;
 	}
 }
 
@@ -266,12 +311,12 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 	const cacheOk =
 		cached?.version === PROMPT_VERSION &&
 		cached.title === item.title &&
-		!isWeakDraft(cached.draft, item.title, source);
+		isUsableDraft(cached.draft, item.title);
 
-	const draft = cacheOk ? cached!.draft : await draftFromModel(item, source);
-	if (!draft) {
-		console.warn(`[enrich] skipping ${item.id} — no usable briefing`);
-		return null;
+	let draft = cacheOk ? cached!.draft : await draftFromModel(item, source);
+	if (!draft || !isUsableDraft(draft, item.title)) {
+		console.warn(`[enrich] using desk fallback for ${item.id}`);
+		draft = deskFallback(item, source);
 	}
 
 	await writeCache({
@@ -310,6 +355,27 @@ function take(pool: FeedItem[], source: DigestSource, n: number, into: Sourced[]
 	}
 }
 
+function assembleDigest(
+	picks: Sourced[],
+	byId: Map<string, Story>,
+	backfill: { items: FeedItem[]; source: DigestSource }[],
+): Story[] {
+	const out: Story[] = [];
+	const seen = new Set<string>();
+
+	const push = (story: Story | undefined) => {
+		if (!story || seen.has(story.id) || out.length >= 10) return;
+		seen.add(story.id);
+		out.push(story);
+	};
+
+	for (const row of picks) push(byId.get(storySlug(row.item.id)));
+	for (const pool of backfill) {
+		for (const item of pool.items) push(byId.get(storySlug(item.id)));
+	}
+	return out;
+}
+
 export async function runEnrichment(): Promise<StoryCatalog> {
 	console.log(`[enrich] text=${TEXT_MODEL} version=${PROMPT_VERSION} groq=${hasTextKey() ? 'yes' : 'no'}`);
 
@@ -331,12 +397,12 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	}
 
 	const [hn, github, papers, x, press, reddit] = await Promise.all([
-		fetchHackerNews(10),
-		fetchHottestGithubToday(6),
-		fetchPapers(10),
+		fetchHackerNews(14),
+		fetchHottestGithubToday(10),
+		fetchPapers(12),
 		fetchXTimeline(10),
-		fetchPressNews(8),
-		fetchRedditTech(6),
+		fetchPressNews(10),
+		fetchRedditTech(8),
 	]);
 
 	// Digest mix: HN + press + X + Reddit (github/papers stay on their section pages).
@@ -347,11 +413,15 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	take(reddit, 'reddit', 2, digestPicks);
 	take(hn, 'hn', 10 - digestPicks.length, digestPicks);
 	take(press, 'press', 10 - digestPicks.length, digestPicks);
+	take(x, 'x', 10 - digestPicks.length, digestPicks);
+	take(reddit, 'reddit', 10 - digestPicks.length, digestPicks);
 
 	const jobs: Sourced[] = [
 		...digestPicks,
 		...hn.map((item) => ({ item, source: 'hn' as const })),
 		...x.map((item) => ({ item, source: 'x' as const })),
+		...press.map((item) => ({ item, source: 'press' as const })),
+		...reddit.map((item) => ({ item, source: 'reddit' as const })),
 		...github.map((item) => ({ item, source: 'github' as const })),
 		...papers.map((item) => ({ item, source: 'papers' as const })),
 	];
@@ -370,11 +440,16 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 
 	const catalog: StoryCatalog = {
 		generatedAt: new Date().toISOString(),
-		digest: digestPicks.map((row) => byId.get(storySlug(row.item.id))).filter((row): row is Story => Boolean(row)),
-		hn: pick(hn),
-		x: pick(x),
-		github: pick(github),
-		papers: pick(papers),
+		digest: assembleDigest(digestPicks, byId, [
+			{ items: hn, source: 'hn' },
+			{ items: press, source: 'press' },
+			{ items: x, source: 'x' },
+			{ items: reddit, source: 'reddit' },
+		]),
+		hn: pick(hn).slice(0, 10),
+		x: pick(x).slice(0, 10),
+		github: pick(github).slice(0, 10),
+		papers: pick(papers).slice(0, 10),
 		press: pick(press),
 		reddit: pick(reddit),
 	};
@@ -382,7 +457,7 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	await mkdir(path.dirname(CATALOG_PATH), { recursive: true });
 	await writeFile(CATALOG_PATH, JSON.stringify(catalog, null, 2));
 	console.log(
-		`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length}; press ${press.length} reddit ${reddit.length})`,
+		`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length}; github ${catalog.github.length}; papers ${catalog.papers.length}; press ${catalog.press.length}; reddit ${catalog.reddit.length})`,
 	);
 	return catalog;
 }

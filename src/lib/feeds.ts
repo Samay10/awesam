@@ -164,17 +164,29 @@ function relevanceScore(text: string, weight = 1) {
 	return score;
 }
 
+function githubAuthHeaders(): Record<string, string> {
+	const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+	return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> {
 	try {
+		const onGithub = /api\.github\.com/i.test(url);
 		const response = await fetch(url, {
 			...init,
 			headers: {
 				Accept: 'application/json',
 				'User-Agent': 'AweSam/1.0 (https://samay10.github.io/awesam/; mailto:sam10ashar@gmail.com)',
+				...(onGithub ? githubAuthHeaders() : {}),
 				...init?.headers,
 			},
 		});
-		if (!response.ok) return null;
+		if (!response.ok) {
+			if (onGithub) {
+				console.warn(`[feeds] GitHub ${response.status} for ${url.split('?')[0]}`);
+			}
+			return null;
+		}
 		return (await response.json()) as T;
 	} catch {
 		return null;
@@ -278,22 +290,34 @@ export async function fetchGithubRepos(limit = 12): Promise<FeedItem[]> {
 }
 
 /** Hottest rising repos in the last ~48h (star proxy for “of the day”). */
-export async function fetchHottestGithubToday(limit = 6): Promise<FeedItem[]> {
+export async function fetchHottestGithubToday(limit = 10): Promise<FeedItem[]> {
 	const since = isoDate(1);
 	const payload = await fetchJson<{ items?: GithubRepo[] }>(
-		`https://api.github.com/search/repositories?q=${encodeURIComponent(`created:>=${since} stars:>10`)}&sort=stars&order=desc&per_page=30`,
+		`https://api.github.com/search/repositories?q=${encodeURIComponent(`created:>=${since} stars:>5`)}&sort=stars&order=desc&per_page=30`,
 		{ headers: { 'X-GitHub-Api-Version': '2022-11-28' } },
 	);
 
 	let items = rankGithubHot(payload?.items ?? [], limit);
 	if (items.length < limit) {
-		const fallback = await fetchJson<{ items?: GithubRepo[] }>(
-			`https://api.github.com/search/repositories?q=${encodeURIComponent(`created:>=${isoDate(5)} stars:>40`)}&sort=stars&order=desc&per_page=30`,
+		const week = await fetchJson<{ items?: GithubRepo[] }>(
+			`https://api.github.com/search/repositories?q=${encodeURIComponent(`created:>=${isoDate(7)} stars:>30`)}&sort=stars&order=desc&per_page=30`,
 			{ headers: { 'X-GitHub-Api-Version': '2022-11-28' } },
 		);
-		items = rankGithubHot(fallback?.items ?? [], limit);
+		const merged = new Map<string, FeedItem>();
+		for (const item of [...items, ...rankGithubHot(week?.items ?? [], limit * 2)]) {
+			merged.set(item.id, item);
+		}
+		items = [...merged.values()].slice(0, limit);
 	}
 
+	if (items.length < limit) {
+		const broad = await fetchGithubRepos(limit);
+		const merged = new Map<string, FeedItem>();
+		for (const item of [...items, ...broad]) merged.set(item.id, item);
+		items = [...merged.values()].slice(0, limit);
+	}
+
+	console.log(`[feeds] github hot repos: ${items.length}`);
 	return items;
 }
 
