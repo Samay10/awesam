@@ -110,31 +110,43 @@ type HnStory = {
 	by?: string;
 	descendants?: number;
 	type?: string;
+	text?: string;
 };
 
+/** Live “best of HN” via Firebase REST — https://github.com/HackerNews/API */
 export async function fetchHackerNews(limit = 12): Promise<FeedItem[]> {
-	const ids = (await fetchJson<number[]>('https://hacker-news.firebaseio.com/v0/topstories.json')) ?? [];
-	const stories = (
-		await Promise.all(
-			ids.slice(0, 40).map((id) => fetchJson<HnStory>(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)),
-		)
-	).filter((story): story is HnStory => Boolean(story?.title && story.type === 'story'));
+	const ids = (await fetchJson<number[]>('https://hacker-news.firebaseio.com/v0/beststories.json')) ?? [];
+	if (!ids.length) return [];
 
-	return stories
-		.map((story) => {
+	// Pull a wider window so we can prefer systems/AI-relevant titles while staying in beststories order.
+	const window = Math.min(ids.length, Math.max(limit * 4, 40));
+	const stories = (
+		await Promise.all(ids.slice(0, window).map((id) => fetchJson<HnStory>(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)))
+	).filter((story): story is HnStory => Boolean(story?.title && story.type === 'story' && !story.url?.includes('ycombinator.com/jobs')));
+
+	const ranked = stories
+		.map((story, index) => {
 			const title = story.title ?? '';
 			const relevant = matchesAny(title, HN_KEYWORDS);
+			return { story, index, relevant };
+		})
+		.sort((a, b) => Number(b.relevant) - Number(a.relevant) || a.index - b.index)
+		.slice(0, limit)
+		.map(({ story }) => {
+			const title = story.title ?? '';
+			const summary = story.text ? clean(story.text.replace(/<[^>]+>/g, ' '), 200) : undefined;
 			return {
 				id: `hn-${story.id}`,
 				title,
 				href: story.url || `https://news.ycombinator.com/item?id=${story.id}`,
 				source: 'Hacker News',
 				meta: `${story.score ?? 0} pts · ${story.by ?? 'anon'} · ${story.descendants ?? 0} comments`,
-				score: (story.score ?? 0) + (relevant ? 80 : 0),
-			};
-		})
-		.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-		.slice(0, limit);
+				summary,
+				score: story.score ?? 0,
+			} satisfies FeedItem;
+		});
+
+	return ranked;
 }
 
 type GithubRepo = {

@@ -28,7 +28,7 @@ export type DigestBand = {
 	cards: DigestCard[];
 };
 
-/** Placeholder catalog matching the Stitch layout. Replace with live APIs next. */
+/** Fallback catalog if live wires fail at build time. */
 export const digestBands: DigestBand[] = [
 	{
 		id: '01',

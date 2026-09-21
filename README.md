@@ -38,8 +38,17 @@ draft: false
 ---
 ```
 
-Placeholder digest cards live in `src/data/digest.ts` until live APIs are wired.
+Placeholder cards in `src/data/digest.ts` are only used if live wires fail at build time.
+
+## Live wires
+
+Build-time fetches (no manual daily edits):
+
+- **Hacker News** — official Firebase API [`beststories`](https://github.com/HackerNews/API), soft-filtered toward systems/AI titles
+- GitHub / arXiv / X — same rebuild cadence
+
+GitHub Actions redeploys on every `main` push and on a **6-hour cron** (`0 0,6,12,18 * * *` UTC), so the site refreshes four times a day.
 
 ## GitHub Pages
 
-Pushes to `main` deploy to https://samay10.github.io/awesam/
+Pushes to `main` (and the schedule above) deploy to https://samay10.github.io/awesam/

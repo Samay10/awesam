@@ -3,6 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    # Four times a day — refresh live wires (HN beststories, etc.)
+    - cron: '0 0,6,12,18 * * *'
   workflow_dispatch:
 
 permissions:

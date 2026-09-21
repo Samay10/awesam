@@ -1,6 +1,7 @@
 ---
 import DigestCard from './DigestCard.astro';
-import type { DigestCard as DigestCardData, DigestSource } from '../data/digest';
+import type { DigestSource } from '../data/digest';
+import { cardsToBands, feedToCard, sizeForBand } from '../lib/buildDigest';
 import type { FeedItem } from '../lib/feeds';
 
 interface Props {
@@ -9,61 +10,13 @@ interface Props {
 	empty?: string;
 }
 
-const PLAN = [2, 2, 3, 3] as const;
-
-const CTA: Record<DigestSource, string> = {
-	hn: 'Deep Dive',
-	x: 'Open',
-	github: 'View Repository',
-	papers: 'View Preprint',
-	articles: 'Read',
-};
-
-const BADGE: Record<DigestSource, string> = {
-	hn: 'HN',
-	x: 'X / Lab',
-	github: 'GitHub',
-	papers: 'ArXiv',
-	articles: 'Article',
-};
-
 const { items, source, empty = 'Nothing here yet — check back soon.' } = Astro.props;
 
-function sizeForBand(index: number): DigestCardData['size'] {
-	if (index === 0) return 'lead';
-	if (index === 1) return 'deep';
-	return 'dense';
-}
-
-function toCard(item: FeedItem, size: DigestCardData['size']): DigestCardData {
-	const stats = item.meta
-		? item.meta.split('·').map((part) => part.trim()).filter(Boolean)
-		: [];
-
-	return {
-		id: item.id,
-		source,
-		badge: source === 'x' ? item.source : BADGE[source],
-		meta: '',
-		title: item.title,
-		abstract: item.summary ?? '',
-		href: item.href,
-		cta: CTA[source],
-		stats,
-		size,
-	};
-}
-
-const bands: DigestCardData[][] = [];
-let cursor = 0;
-for (let i = 0; i < PLAN.length && cursor < items.length; i++) {
-	const take = PLAN[i];
-	bands.push(items.slice(cursor, cursor + take).map((item) => toCard(item, sizeForBand(i))));
-	cursor += take;
-}
-if (cursor < items.length) {
-	bands.push(items.slice(cursor).map((item) => toCard(item, 'dense')));
-}
+const cards = items.map((item, index) => {
+	const bandIndex = index < 2 ? 0 : index < 4 ? 1 : index < 7 ? 2 : 3;
+	return feedToCard(item, source, sizeForBand(bandIndex));
+});
+const bands = cardsToBands(cards);
 ---
 
 {
@@ -71,10 +24,10 @@ if (cursor < items.length) {
 		<p class="empty">{empty}</p>
 	) : (
 		<div class="feed">
-			{bands.map((cards) => (
+			{bands.map((band) => (
 				<section class="band">
-					<div class:list={['grid', cards.length >= 3 ? 'three' : 'two']}>
-						{cards.map((card) => (
+					<div class:list={['grid', band.cards.length >= 3 ? 'three' : 'two']}>
+						{band.cards.map((card) => (
 							<DigestCard card={card} preview={false} />
 						))}
 					</div>

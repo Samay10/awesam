@@ -1,11 +1,21 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DigestCard from '../components/DigestCard.astro';
-import { countBySource, digestBands, digestSynthesis } from '../data/digest';
+import { countBySource, digestSynthesis } from '../data/digest';
+import { buildLiveDigestBands } from '../lib/buildDigest';
 import { site } from '../data/site';
 
+const digestBands = await buildLiveDigestBands();
 const counts = countBySource(digestBands);
 const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map((card) => [card.id, card])));
+const syncedLabel = new Date().toLocaleString('en-GB', {
+	timeZone: 'UTC',
+	day: '2-digit',
+	month: 'short',
+	hour: '2-digit',
+	minute: '2-digit',
+	hour12: false,
+});
 ---
 
 <BaseLayout
@@ -15,11 +25,11 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 	<div class="canvas container-page">
 		<header class="mast">
 			<div class="issue">
-				<span class="vol">Volume IV</span>
+				<span class="vol">Live wire</span>
 				<span class="sep">·</span>
-				<span>Issue 298</span>
+				<span>Synced {syncedLabel} UTC</span>
 				<span class="sep">·</span>
-				<span class="on">Curated Technical Edition</span>
+				<span class="on">Refreshes every 6 hours</span>
 			</div>
 
 			<div class="hero-grid">
@@ -27,7 +37,7 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 					<h1>The Technical Digest</h1>
 					<p>
 						Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
-						Synthesized daily for practicing architects and principal builders.
+						Synthesized from live wires for practicing architects and principal builders.
 					</p>
 				</div>
 				<div class="partition">
@@ -61,7 +71,7 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 					<span class="band-label">Journal Synthesis</span>
 					<h3>The Macro Architecture Horizon</h3>
 				</div>
-				<span class="engine">Synthesis Engine stub · Live APIs next</span>
+				<span class="engine">HN beststories · rebuild every 6h</span>
 			</div>
 			<div class="syn-grid">
 				{
