@@ -1,24 +1,9 @@
 import type { DigestBand, DigestCard, DigestSource } from '../data/digest';
 import { digestBands as placeholderBands } from '../data/digest';
-import { fetchGithubRepos, fetchHackerNews, fetchPapers, fetchXTimeline, type FeedItem } from './feeds';
+import { loadCatalog, type Story } from './catalog';
+import type { FeedItem } from './feeds';
 
 export const DIGEST_PLAN = [2, 2, 3, 3] as const;
-
-const CTA: Record<DigestSource, string> = {
-	hn: 'Deep Dive',
-	x: 'Open',
-	github: 'View Repository',
-	papers: 'View Preprint',
-	articles: 'Read',
-};
-
-const BADGE: Record<DigestSource, string> = {
-	hn: 'HN · Best',
-	x: 'X / Lab',
-	github: 'GitHub',
-	papers: 'ArXiv',
-	articles: 'Article',
-};
 
 export function sizeForBand(index: number): DigestCard['size'] {
 	if (index === 0) return 'lead';
@@ -26,6 +11,35 @@ export function sizeForBand(index: number): DigestCard['size'] {
 	return 'dense';
 }
 
+export function readPath(id: string) {
+	const base = import.meta.env.BASE_URL;
+	return `${base}reads/${id}/`;
+}
+
+export function coverSrc(image: string | null | undefined) {
+	if (!image) return null;
+	const base = import.meta.env.BASE_URL;
+	return `${base}${image.replace(/^\//, '')}`;
+}
+
+export function storyToCard(story: Story, size: DigestCard['size']): DigestCard {
+	return {
+		id: story.id,
+		source: story.source,
+		badge: story.badge,
+		meta: story.meta,
+		title: story.title,
+		abstract: story.lede,
+		href: readPath(story.id),
+		originalHref: story.originalHref,
+		image: coverSrc(story.image),
+		cta: 'Read',
+		stats: story.stats,
+		size,
+	};
+}
+
+/** Kept for fallback placeholder cards that still speak FeedItem. */
 export function feedToCard(item: FeedItem, source: DigestSource, size: DigestCard['size']): DigestCard {
 	const stats = item.meta
 		? item.meta
@@ -37,12 +51,13 @@ export function feedToCard(item: FeedItem, source: DigestSource, size: DigestCar
 	return {
 		id: item.id,
 		source,
-		badge: source === 'papers' || source === 'x' ? item.source : BADGE[source],
+		badge: item.source,
 		meta: '',
 		title: item.title,
 		abstract: item.summary ?? '',
-		href: item.href,
-		cta: source === 'papers' && !/arxiv/i.test(item.source) ? 'View Paper' : CTA[source],
+		href: readPath(item.id),
+		originalHref: item.href,
+		cta: 'Read',
 		stats,
 		size,
 	};
@@ -72,40 +87,15 @@ export function cardsToBands(cards: DigestCard[], plan: readonly number[] = DIGE
 	}));
 }
 
-type Sourced = { item: FeedItem; source: DigestSource };
-
-function take(pool: FeedItem[], source: DigestSource, n: number, into: Sourced[]) {
-	for (const item of pool) {
-		if (into.length >= 10) return;
-		if (into.some((row) => row.item.id === item.id)) continue;
-		if (n <= 0) return;
-		into.push({ item, source });
-		n -= 1;
-	}
+export function storiesToBands(stories: Story[], plan: readonly number[] = DIGEST_PLAN): DigestBand[] {
+	const cards = chunkByPlan(stories, plan).flatMap((bandStories, bandIndex) =>
+		bandStories.map((story) => storyToCard(story, sizeForBand(bandIndex))),
+	);
+	return cardsToBands(cards, plan);
 }
 
-/** Mix live feeds into the 2·2·3·3 digest grid. Pads with HN best if a source is quiet. */
 export async function buildLiveDigestBands(): Promise<DigestBand[]> {
-	const [hn, github, papers, x] = await Promise.all([
-		fetchHackerNews(12),
-		fetchGithubRepos(6),
-		fetchPapers(6),
-		fetchXTimeline(6),
-	]);
-
-	const picks: Sourced[] = [];
-	take(hn, 'hn', 4, picks);
-	take(github, 'github', 2, picks);
-	take(papers, 'papers', 2, picks);
-	take(x, 'x', 2, picks);
-	take(hn, 'hn', 10 - picks.length, picks);
-
-	if (picks.length === 0) return placeholderBands;
-
-	const cards = picks.map(({ item, source }, index) => {
-		const bandIndex = index < 2 ? 0 : index < 4 ? 1 : index < 7 ? 2 : 3;
-		return feedToCard(item, source, sizeForBand(bandIndex));
-	});
-
-	return cardsToBands(cards);
+	const catalog = await loadCatalog();
+	if (catalog.digest.length === 0) return placeholderBands;
+	return storiesToBands(catalog.digest);
 }

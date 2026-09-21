@@ -6,7 +6,6 @@ import { buildLiveDigestBands } from '../lib/buildDigest';
 import { site } from '../data/site';
 
 const digestBands = await buildLiveDigestBands();
-const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map((card) => [card.id, card])));
 ---
 
 <BaseLayout
@@ -34,69 +33,7 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 			))
 		}
 	</div>
-
-	<div class="modal" id="preview-modal" hidden>
-		<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-			<div class="dialog-head">
-				<div class="dialog-meta">
-					<span class="badge" id="modal-tag">HN</span>
-					<span id="modal-read"></span>
-				</div>
-				<button type="button" class="close" id="modal-close" aria-label="Close">×</button>
-			</div>
-			<div class="dialog-body">
-				<h3 id="modal-title">Article Title</h3>
-				<p id="modal-content"></p>
-				<div class="dialog-foot">
-					<span id="modal-source-id"></span>
-					<a id="modal-link" href="#" target="_blank" rel="noreferrer">
-						Read original ↗
-					</a>
-				</div>
-			</div>
-		</div>
-	</div>
 </BaseLayout>
-
-<script define:vars={{ catalog }}>
-	const modal = document.getElementById('preview-modal');
-	const modalTag = document.getElementById('modal-tag');
-	const modalRead = document.getElementById('modal-read');
-	const modalTitle = document.getElementById('modal-title');
-	const modalContent = document.getElementById('modal-content');
-	const modalSource = document.getElementById('modal-source-id');
-	const modalLink = document.getElementById('modal-link');
-
-	function openPreview(id) {
-		const item = catalog[id];
-		if (!item || !modal) return;
-		modalTag.textContent = item.badge;
-		modalRead.textContent = item.meta;
-		modalTitle.textContent = item.title;
-		modalContent.textContent = item.abstract;
-		modalSource.textContent = item.stats.join(' · ');
-		modalLink.href = item.href;
-		modal.hidden = false;
-		document.body.style.overflow = 'hidden';
-	}
-
-	function closePreview() {
-		if (!modal) return;
-		modal.hidden = true;
-		document.body.style.overflow = '';
-	}
-
-	document.querySelectorAll('[data-preview]').forEach((node) => {
-		node.addEventListener('click', () => openPreview(node.dataset.preview));
-	});
-	document.getElementById('modal-close')?.addEventListener('click', closePreview);
-	modal?.addEventListener('click', (event) => {
-		if (event.target === modal) closePreview();
-	});
-	window.addEventListener('keydown', (event) => {
-		if (event.key === 'Escape') closePreview();
-	});
-</script>
 
 <style>
 	.canvas {
@@ -145,120 +82,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 	.grid.two,
 	.grid.three {
 		grid-template-columns: 1fr;
-	}
-
-	.modal {
-		position: fixed;
-		inset: 0;
-		z-index: 60;
-		display: grid;
-		place-items: center;
-		padding: 2rem;
-		background: rgba(0, 0, 0, 0.45);
-	}
-
-	.modal[hidden] {
-		display: none;
-	}
-
-	.dialog {
-		width: min(720px, 100%);
-		max-height: 82vh;
-		overflow: auto;
-		background: var(--color-surface-light);
-		border: 1px solid var(--color-border);
-		border-radius: 0.25rem;
-	}
-
-	.dialog-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 0.9rem 1.25rem;
-		background: var(--color-surface-container-low);
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	.dialog-meta {
-		display: flex;
-		align-items: center;
-		gap: 0.65rem;
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--color-on-surface-variant);
-	}
-
-	.dialog-meta .badge {
-		padding: 0.15rem 0.45rem;
-		border-radius: 999px;
-		background: var(--color-surface-container);
-		color: var(--color-secondary);
-		font-weight: 600;
-	}
-
-	.close {
-		width: 1.75rem;
-		height: 1.75rem;
-		border: 0;
-		border-radius: 0.25rem;
-		background: transparent;
-		color: var(--color-on-surface-variant);
-		font-size: 1.25rem;
-		cursor: pointer;
-	}
-
-	.dialog-body {
-		padding: 1.35rem;
-		display: grid;
-		gap: 0.75rem;
-	}
-
-	#modal-title {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: 1.5rem;
-		font-weight: 600;
-		letter-spacing: -0.02em;
-		line-height: 1.2;
-	}
-
-	#modal-content {
-		margin: 0;
-		color: var(--color-on-surface-variant);
-		line-height: 1.6;
-	}
-
-	.dialog-foot {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.9rem 1rem;
-		border-radius: 0.25rem;
-		background: var(--color-surface-container-low);
-	}
-
-	#modal-source-id {
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		color: var(--color-on-surface-variant);
-	}
-
-	#modal-link {
-		display: inline-flex;
-		align-items: center;
-		padding: 0.45rem 0.8rem;
-		border-radius: 0.25rem;
-		background: var(--color-primary);
-		color: var(--color-on-primary);
-		font-family: var(--font-mono);
-		font-size: 0.6875rem;
-		font-weight: 600;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
 	}
 
 	@media (min-width: 900px) {

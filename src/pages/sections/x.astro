@@ -2,10 +2,10 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import FeedList from '../../components/FeedList.astro';
 import UmeRule from '../../components/UmeRule.astro';
-import { fetchXTimeline } from '../../lib/feeds';
+import { loadCatalog } from '../../lib/catalog';
 import { site } from '../../data/site';
 
-const items = await fetchXTimeline(10);
+const catalog = await loadCatalog();
 ---
 
 <BaseLayout title={`X · ${site.name}`} description="X / lab signals.">
@@ -14,7 +14,7 @@ const items = await fetchXTimeline(10);
 			<h1>X</h1>
 			<UmeRule />
 		</header>
-		<FeedList items={items} source="x" />
+		<FeedList stories={catalog.x} />
 	</section>
 </BaseLayout>
 

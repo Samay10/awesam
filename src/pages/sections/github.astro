@@ -3,10 +3,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import FeedList from '../../components/FeedList.astro';
 import GithubLivePulse from '../../components/GithubLivePulse.astro';
 import UmeRule from '../../components/UmeRule.astro';
-import { fetchGithubWatchPulls, fetchHottestGithubToday } from '../../lib/feeds';
+import { fetchGithubWatchPulls } from '../../lib/feeds';
+import { loadCatalog } from '../../lib/catalog';
 import { site } from '../../data/site';
 
-const hot = await fetchHottestGithubToday(6);
+const catalog = await loadCatalog();
 const pulse = await fetchGithubWatchPulls();
 ---
 
@@ -19,7 +20,7 @@ const pulse = await fetchGithubWatchPulls();
 
 		<div class="block">
 			<h2>Hot Repos</h2>
-			<FeedList items={hot} source="github" plan={[2, 2, 2]} empty="Nothing rising right now." />
+			<FeedList stories={catalog.github} plan={[2, 2, 2]} empty="Nothing rising right now." />
 		</div>
 
 		<div class="block">

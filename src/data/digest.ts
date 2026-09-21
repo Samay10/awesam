@@ -8,6 +8,8 @@ export type DigestCard = {
 	title: string;
 	abstract: string;
 	href: string;
+	originalHref?: string;
+	image?: string | null;
 	cta: string;
 	stats: string[];
 	diagram?: {

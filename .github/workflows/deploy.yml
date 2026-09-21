@@ -28,9 +28,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Restore story cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/stories
+            .cache/covers
+          key: enrich-v1-${{ github.run_id }}
+          restore-keys: |
+            enrich-v1-
       - name: Install
         run: npm ci
       - name: Build
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          POLLINATIONS_KEY: ${{ secrets.POLLINATIONS_KEY }}
         run: npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

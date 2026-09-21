@@ -1,26 +1,20 @@
 ---
 import DigestCard from './DigestCard.astro';
-import type { DigestSource } from '../data/digest';
-import { DIGEST_PLAN, cardsToBands, feedToCard, sizeForBand, chunkByPlan } from '../lib/buildDigest';
-import type { FeedItem } from '../lib/feeds';
+import { DIGEST_PLAN, storiesToBands } from '../lib/buildDigest';
+import type { Story } from '../lib/catalog';
 
 interface Props {
-	items: FeedItem[];
-	source: DigestSource;
+	stories: Story[];
 	empty?: string;
 	plan?: readonly number[];
 }
 
-const { items, source, empty = 'Nothing here yet — check back soon.', plan = DIGEST_PLAN } = Astro.props;
-
-const sized = chunkByPlan(items, plan).flatMap((bandItems, bandIndex) =>
-	bandItems.map((item) => feedToCard(item, source, sizeForBand(bandIndex))),
-);
-const bands = cardsToBands(sized, plan);
+const { stories, empty = 'Nothing here yet — check back soon.', plan = DIGEST_PLAN } = Astro.props;
+const bands = storiesToBands(stories, plan);
 ---
 
 {
-	items.length === 0 ? (
+	stories.length === 0 ? (
 		<p class="empty">{empty}</p>
 	) : (
 		<div class="feed">
@@ -28,7 +22,7 @@ const bands = cardsToBands(sized, plan);
 				<section class="band">
 					<div class:list={['grid', band.cards.length >= 3 ? 'three' : 'two']}>
 						{band.cards.map((card) => (
-							<DigestCard card={card} preview={false} />
+							<DigestCard card={card} />
 						))}
 					</div>
 				</section>

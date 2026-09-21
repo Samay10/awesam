@@ -16,6 +16,14 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+.env.local
+
+# generated story briefings and covers (rebuilt on each deploy)
+.cache/
+src/data/generated/stories.json
+public/covers/*.png
+public/covers/*.jpg
+public/covers/*.webp
 
 # macOS-specific files
 .DS_Store

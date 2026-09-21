@@ -1,0 +1,197 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import UmeRule from '../../components/UmeRule.astro';
+import { allStories, loadCatalog, type Story } from '../../lib/catalog';
+import { coverSrc } from '../../lib/buildDigest';
+import { site } from '../../data/site';
+
+export async function getStaticPaths() {
+	const catalog = await loadCatalog();
+	return allStories(catalog).map((story) => ({
+		params: { id: story.id },
+		props: { story },
+	}));
+}
+
+interface Props {
+	story: Story;
+}
+
+const { story } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const cover = coverSrc(story.image);
+const sectionHref =
+	story.source === 'hn'
+		? `${base}sections/hn/`
+		: story.source === 'x'
+			? `${base}sections/x/`
+			: story.source === 'github'
+				? `${base}sections/github/`
+				: story.source === 'papers'
+					? `${base}sections/papers/`
+					: `${base}digest/`;
+const originalLabel =
+	story.source === 'github' ? 'View repository' : story.source === 'papers' ? 'Read the paper' : 'Read original';
+---
+
+<BaseLayout title={`${story.title} · ${site.name}`} description={story.lede}>
+	<article class="read">
+		<div class="container-page">
+			<a class="back ink-link" href={sectionHref}>← {story.badge}</a>
+
+			<header class="head">
+				<p class="meta">
+					<span>{story.sourceLabel}</span>
+					<span class="sep">·</span>
+					<span>{story.meta}</span>
+				</p>
+				<h1>{story.title}</h1>
+				<UmeRule />
+				{story.whyRead && <p class="dek">{story.whyRead}</p>}
+			</header>
+
+			{
+				cover && (
+					<figure class="hero">
+						<img src={cover} alt="" width="1024" height="576" />
+					</figure>
+				)
+			}
+
+			<div class="body measure">
+				{story.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+			</div>
+
+			<footer class="origin">
+				<p>
+					This is an AweSam briefing. For the primary source, discussion, and updates, continue on the original
+					site.
+				</p>
+				<a class="origin-link" href={story.originalHref} target="_blank" rel="noreferrer">
+					{originalLabel} ↗
+				</a>
+			</footer>
+		</div>
+	</article>
+</BaseLayout>
+
+<style>
+	.read {
+		padding: clamp(2rem, 6vw, 3.5rem) 0 clamp(4rem, 8vw, 6rem);
+	}
+
+	.back {
+		display: inline-block;
+		margin-bottom: 1.75rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.head {
+		max-width: 42rem;
+		margin-bottom: 2rem;
+		display: grid;
+		gap: 0.9rem;
+	}
+
+	.meta {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-on-surface-variant);
+	}
+
+	.sep {
+		margin-inline: 0.45rem;
+		opacity: 0.55;
+	}
+
+	h1 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: clamp(2.2rem, 6vw, 3.4rem);
+		font-weight: 650;
+		letter-spacing: -0.035em;
+		line-height: 1.05;
+	}
+
+	.dek {
+		margin: 0;
+		font-size: 1.15rem;
+		line-height: 1.55;
+		color: var(--color-on-surface-variant);
+		font-style: italic;
+		font-family: var(--font-display);
+	}
+
+	.hero {
+		margin: 0 0 2.25rem;
+		border-radius: 0.3rem;
+		overflow: hidden;
+		background: var(--color-surface-container);
+	}
+
+	.hero img {
+		display: block;
+		width: 100%;
+		height: auto;
+		aspect-ratio: 16 / 9;
+		object-fit: cover;
+	}
+
+	.body {
+		max-width: 42rem;
+	}
+
+	.body p {
+		margin: 0 0 1.25rem;
+		font-size: 1.125rem;
+		line-height: 1.75;
+	}
+
+	.body p:first-of-type::first-letter {
+		float: left;
+		font-family: var(--font-display);
+		font-size: 3.6rem;
+		line-height: 0.8;
+		padding: 0.15rem 0.55rem 0 0;
+		font-weight: 650;
+		color: var(--color-secondary);
+	}
+
+	.origin {
+		max-width: 42rem;
+		margin-top: 2.5rem;
+		padding: 1.15rem 1.25rem;
+		border-radius: 0.3rem;
+		background: var(--color-surface-container-low);
+		display: grid;
+		gap: 0.85rem;
+	}
+
+	.origin p {
+		margin: 0;
+		color: var(--color-on-surface-variant);
+		line-height: 1.55;
+	}
+
+	.origin-link {
+		justify-self: start;
+		display: inline-flex;
+		align-items: center;
+		padding: 0.5rem 0.85rem;
+		border-radius: 0.25rem;
+		background: var(--color-primary);
+		color: var(--color-on-primary);
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		text-decoration: none;
+	}
+</style>

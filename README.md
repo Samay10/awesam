@@ -51,6 +51,21 @@ Build-time fetches (no manual daily edits):
 
 GitHub Actions redeploys on every `main` push and on a **6-hour cron** (`0 0,6,12,18 * * *` UTC), so papers refresh well within a **24-hour** window. The GitHub PR pulse refreshes itself in-page without a redeploy.
 
+## On-site briefings
+
+Cards do **not** paste the original post. On every refresh the build:
+
+1. Pulls the live wires
+2. Asks Groq **Llama 3.1 8B Instant** (free tier, no card) for an original lede + 2–3 minute read
+3. Asks **Pollinations FLUX** for a cover (free; no key required, slower without one)
+4. Publishes an on-site page at `/reads/<id>/` with a link back to the original at the end
+
+GitHub **Hot Repos** go through this pipeline. The Big Guns PR boxes stay live-updating and are not rewritten.
+
+Hugging Face Inference Providers only include **$0.10/month** on a free account, which cannot cover image generation. Groq + Pollinations stay at $0.
+
+Set `GROQ_API_KEY` locally in `.env` and as a GitHub Actions secret named **`GROQ_API_KEY`**. Optional: `POLLINATIONS_KEY` if Actions IP rate limits kick in.
+
 ## GitHub Pages
 
 Pushes to `main` (and the schedule above) deploy to https://samay10.github.io/awesam/

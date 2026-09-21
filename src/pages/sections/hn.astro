@@ -2,10 +2,10 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import FeedList from '../../components/FeedList.astro';
 import UmeRule from '../../components/UmeRule.astro';
-import { fetchHackerNews } from '../../lib/feeds';
+import { loadCatalog } from '../../lib/catalog';
 import { site } from '../../data/site';
 
-const items = await fetchHackerNews(10);
+const catalog = await loadCatalog();
 ---
 
 <BaseLayout title={`Hacker News · ${site.name}`} description="Highest-signal Hacker News stories.">
@@ -14,7 +14,7 @@ const items = await fetchHackerNews(10);
 			<h1>Hacker News</h1>
 			<UmeRule />
 		</header>
-		<FeedList items={items} source="hn" />
+		<FeedList stories={catalog.hn} />
 	</section>
 </BaseLayout>
 

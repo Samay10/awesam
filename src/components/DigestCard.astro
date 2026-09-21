@@ -3,87 +3,38 @@ import type { DigestCard } from '../data/digest';
 
 interface Props {
 	card: DigestCard;
-	/** When false, title/CTA link out instead of opening the digest preview modal. */
-	preview?: boolean;
 }
 
-const { card, preview = true } = Astro.props;
+const { card } = Astro.props;
 const tagClass = `tag-${card.source}`;
 const spanClass = card.size === 'dense' ? 'dense' : 'wide';
-const linkAttrs = { href: card.href, target: '_blank', rel: 'noreferrer' };
 ---
 
 <article class:list={['card', spanClass]} data-source={card.source} data-id={card.id}>
-	<div class="top">
-		<div class="meta-row">
-			<span class:list={['badge', tagClass]}>{card.badge}</span>
-			{card.meta && <span class="when">{card.meta}</span>}
-		</div>
+	<a class="hit" href={card.href}>
 		{
-			preview ? (
-				<button type="button" class="title" data-preview={card.id}>
-					{card.title}
-				</button>
-			) : (
-				<a class="title" {...linkAttrs}>
-					{card.title}
-				</a>
+			card.image && (
+				<img class="cover" src={card.image} alt="" width="1024" height="576" loading="lazy" />
 			)
 		}
-		{card.abstract && <p class="abstract">{card.abstract}</p>}
-	</div>
-
-	{
-		card.diagram && (
-			<div class="diagram">
-				<div class="diagram-head">
-					<span>{card.diagram.label}</span>
-					<span class="accent">{card.diagram.accent}</span>
-				</div>
-				<div class="cells">
-					{card.diagram.cells.map((cell) => (
-						<div class="cell">
-							<strong>{cell.title}</strong>
-							<span>{cell.subtitle}</span>
-						</div>
-					))}
-				</div>
-				<p class="diagram-foot">{card.diagram.footer}</p>
+		<div class="top">
+			<div class="meta-row">
+				<span class:list={['badge', tagClass]}>{card.badge}</span>
+				{card.meta && <span class="when">{card.meta}</span>}
 			</div>
-		)
-	}
-
-	{
-		card.metricBar && (
-			<div class="metric">
-				<div class="metric-row">
-					<span>{card.metricBar.left}</span>
-					<span class="accent">{card.metricBar.right}</span>
-				</div>
-				<div class="bar">
-					<span style={`width:${card.metricBar.width}%`}></span>
-				</div>
-			</div>
-		)
-	}
+			<h3 class="title">{card.title}</h3>
+			{card.abstract && <p class="abstract">{card.abstract}</p>}
+		</div>
+	</a>
 
 	<div class="foot">
 		<div class="stats">
 			{card.stats.map((stat) => <span>{stat}</span>)}
 		</div>
-		{
-			preview ? (
-				<button type="button" class="cta" data-preview={card.id}>
-					{card.cta}
-					<span aria-hidden="true">→</span>
-				</button>
-			) : (
-				<a class="cta" {...linkAttrs}>
-					{card.cta}
-					<span aria-hidden="true">→</span>
-				</a>
-			)
-		}
+		<a class="cta" href={card.href}>
+			{card.cta}
+			<span aria-hidden="true">→</span>
+		</a>
 	</div>
 </article>
 
@@ -93,19 +44,43 @@ const linkAttrs = { href: card.href, target: '_blank', rel: 'noreferrer' };
 		flex-direction: column;
 		justify-content: space-between;
 		gap: 0.875rem;
-		padding: 1.5rem;
+		padding: 0;
+		overflow: hidden;
 		border-radius: 0.25rem;
 		background: var(--color-surface-light);
 		transition: background 150ms linear;
 	}
 
 	.card.dense {
-		padding: 1rem;
 		gap: 0.65rem;
 	}
 
 	.card:hover {
 		background: var(--color-surface-container-low);
+	}
+
+	.hit {
+		display: grid;
+		gap: 0;
+		color: inherit;
+		text-decoration: none;
+		min-width: 0;
+	}
+
+	.cover {
+		display: block;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		object-fit: cover;
+		background: var(--color-surface-container);
+	}
+
+	.top {
+		padding: 1.35rem 1.5rem 0;
+	}
+
+	.dense .top {
+		padding: 1rem 1rem 0;
 	}
 
 	.meta-row {
@@ -154,14 +129,12 @@ const linkAttrs = { href: card.href, target: '_blank', rel: 'noreferrer' };
 		border: 0;
 		background: transparent;
 		text-align: left;
-		cursor: pointer;
 		font-family: var(--font-display);
 		font-weight: 600;
 		letter-spacing: -0.015em;
 		color: var(--color-on-surface);
 		line-height: 1.25;
 		transition: color 150ms linear;
-		text-decoration: none;
 	}
 
 	.wide .title {
@@ -173,7 +146,7 @@ const linkAttrs = { href: card.href, target: '_blank', rel: 'noreferrer' };
 		line-height: 1.3;
 	}
 
-	.title:hover {
+	.card:hover .title {
 		color: var(--color-secondary);
 	}
 
@@ -189,87 +162,19 @@ const linkAttrs = { href: card.href, target: '_blank', rel: 'noreferrer' };
 		line-height: 1.45;
 	}
 
-	.diagram {
-		padding: 0.875rem;
-		border-radius: 0.25rem;
-		background: var(--color-surface-container);
-	}
-
-	.diagram-head,
-	.metric-row {
-		display: flex;
-		justify-content: space-between;
-		gap: 0.75rem;
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-		color: var(--color-outline);
-	}
-
-	.accent {
-		color: var(--color-secondary);
-		font-weight: 600;
-	}
-
-	.cells {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 0.35rem;
-		margin-top: 0.55rem;
-	}
-
-	.cell {
-		padding: 0.55rem 0.4rem;
-		border-radius: 0.25rem;
-		background: var(--color-surface-light);
-		text-align: center;
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		letter-spacing: 0.03em;
-	}
-
-	.cell strong {
-		display: block;
-		color: var(--color-on-surface);
-		font-weight: 600;
-	}
-
-	.cell span {
-		color: var(--color-on-surface-variant);
-	}
-
-	.diagram-foot {
-		margin: 0.55rem 0 0;
-		text-align: center;
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		color: var(--color-on-surface-variant);
-	}
-
-	.metric .bar {
-		margin-top: 0.4rem;
-		height: 0.25rem;
-		border-radius: 999px;
-		background: var(--color-surface-container);
-		overflow: hidden;
-	}
-
-	.metric .bar span {
-		display: block;
-		height: 100%;
-		background: var(--color-secondary);
-	}
-
 	.foot {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem;
-		padding-top: 0.25rem;
+		padding: 0.25rem 1.5rem 1.35rem;
 		font-family: var(--font-mono);
 		font-size: 0.6875rem;
 		color: var(--color-on-surface-variant);
+	}
+
+	.dense .foot {
+		padding: 0.15rem 1rem 1rem;
 	}
 
 	.stats {

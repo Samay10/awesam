@@ -2,10 +2,10 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import FeedList from '../../components/FeedList.astro';
 import UmeRule from '../../components/UmeRule.astro';
-import { fetchPapers } from '../../lib/feeds';
+import { loadCatalog } from '../../lib/catalog';
 import { site } from '../../data/site';
 
-const items = await fetchPapers(10);
+const catalog = await loadCatalog();
 ---
 
 <BaseLayout
@@ -17,7 +17,7 @@ const items = await fetchPapers(10);
 			<h1>Papers</h1>
 			<UmeRule />
 		</header>
-		<FeedList items={items} source="papers" plan={[2, 2, 3, 3]} />
+		<FeedList stories={catalog.papers} plan={[2, 2, 3, 3]} />
 	</section>
 </BaseLayout>
 
