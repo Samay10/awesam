@@ -1,35 +1,53 @@
 ---
-import { GITHUB_WATCH_REPOS, type GithubPullSignal } from '../lib/feeds';
+import { GITHUB_WATCH_REPOS, type GithubRepoPulse } from '../lib/feeds';
 
 interface Props {
-	initial: GithubPullSignal[];
+	initial: GithubRepoPulse[];
 }
 
 const { initial } = Astro.props;
 const repos = [...GITHUB_WATCH_REPOS];
 ---
 
-<section class="pulse" id="gh-pulse" data-repos={JSON.stringify(repos)} aria-label="Recent pull requests">
-	<div class="pulse-head">
+<section class="guns" id="gh-pulse" aria-label="Flagship repository pull requests">
+	<div class="guns-head">
 		<span class="breath" aria-hidden="true"></span>
 		<span class="live-label">Live</span>
 	</div>
 
-	<ol class="lanes" id="pulse-lanes" aria-live="polite">
+	<ol class="grid" id="pulse-grid" aria-live="polite">
 		{
-			initial.map((item, index) => (
-				<li class="lane" data-id={item.id} style={`--i:${index}`}>
-					<a class="lane-link" href={item.href} target="_blank" rel="noreferrer">
-						<span class="repo">{item.repo}</span>
-						<span class="pr">
-							<span class="num">#{item.number}</span>
-							<span class="title">{item.title}</span>
-						</span>
-						<span class="who">
-							@{item.user}
-							<span class="when" data-ts={item.updatedAt}></span>
+			initial.map((row, index) => (
+				<li class="box" data-repo={row.repo} style={`--i:${index}`}>
+					<a class="box-head" href={row.href} target="_blank" rel="noreferrer">
+						<img class="avatar" src={row.avatar} alt="" width="28" height="28" loading="lazy" />
+						<span class="repo-name">
+							<span class="owner">{row.owner}/</span>
+							{row.name}
 						</span>
 					</a>
+					<ol class="prs">
+						{
+							[0, 1, 2].map((slot) => {
+								const pull = row.pulls[slot];
+								return (
+									<li class="pr" data-slot={slot} hidden={!pull}>
+										<a href={pull?.href ?? row.href} target="_blank" rel="noreferrer">
+											<span class="num">{pull ? `#${pull.number}` : ''}</span>
+											<span class="title">{pull?.title ?? ''}</span>
+											<span class="meta">
+												<span class="user">{pull ? `@${pull.user}` : ''}</span>
+												<span class="when" data-ts={pull?.updatedAt ?? ''}></span>
+											</span>
+										</a>
+									</li>
+								);
+							})
+						}
+						<li class="empty" hidden={row.pulls.length > 0}>
+							No recent PRs
+						</li>
+					</ol>
 				</li>
 			))
 		}
@@ -39,11 +57,12 @@ const repos = [...GITHUB_WATCH_REPOS];
 <script define:vars={{ initial, repos }}>
 	const REFRESH_MS = 5 * 60 * 1000;
 	const BATCH = 4;
-	const lanes = document.getElementById('pulse-lanes');
+	const TIME_TICK_MS = 30_000;
+	const grid = document.getElementById('pulse-grid');
 	const root = document.getElementById('gh-pulse');
 
 	/** @type {Map<string, any>} */
-	const byRepo = new Map(initial.map((item) => [item.repo, item]));
+	const byRepo = new Map(initial.map((row) => [row.repo, row]));
 	let cursor = 0;
 	let deadline = Date.now() + REFRESH_MS;
 	let breathTimer = 0;
@@ -58,50 +77,75 @@ const repos = [...GITHUB_WATCH_REPOS];
 		return `${Math.round(hrs / 24)}d ago`;
 	}
 
-	function ranked() {
-		return [...byRepo.values()].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)).slice(0, 10);
+	function repoMeta(repo) {
+		const [owner, name] = repo.split('/');
+		return {
+			repo,
+			owner: owner ?? repo,
+			name: name ?? repo,
+			href: `https://github.com/${repo}`,
+			avatar: `https://github.com/${owner}.png?size=80`,
+		};
 	}
 
-	function escapeHtml(value) {
-		return String(value)
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;');
-	}
-
-	function render(animateIds = new Set()) {
-		if (!lanes) return;
-		const items = ranked();
-		lanes.innerHTML = items
-			.map(
-				(item, index) => `
-			<li class="lane${animateIds.has(item.id) ? ' is-new' : ''}" data-id="${escapeHtml(item.id)}" style="--i:${index}">
-				<a class="lane-link" href="${escapeHtml(item.href)}" target="_blank" rel="noreferrer">
-					<span class="repo">${escapeHtml(item.repo)}</span>
-					<span class="pr">
-						<span class="num">#${escapeHtml(item.number)}</span>
-						<span class="title"></span>
-					</span>
-					<span class="who">@${escapeHtml(item.user)}<span class="when">${escapeHtml(relTime(item.updatedAt))}</span></span>
-				</a>
-			</li>`,
-			)
-			.join('');
-
-		[...lanes.querySelectorAll('.lane')].forEach((node, index) => {
-			const title = node.querySelector('.title');
-			if (title) title.textContent = items[index].title;
+	function paintTimes() {
+		grid?.querySelectorAll('.when[data-ts]').forEach((node) => {
+			const ts = node.getAttribute('data-ts');
+			if (ts) node.textContent = relTime(ts);
 		});
+	}
 
-		root?.classList.toggle('is-hot', animateIds.size > 0);
+	function paintRepo(repo, changed = false) {
+		const row = byRepo.get(repo) ?? { ...repoMeta(repo), pulls: [] };
+		const box = grid?.querySelector(`.box[data-repo="${CSS.escape(repo)}"]`);
+		if (!box) return;
+
+		const empty = box.querySelector('.empty');
+		if (empty) empty.hidden = row.pulls.length > 0;
+
+		for (let slot = 0; slot < 3; slot++) {
+			const item = box.querySelector(`.pr[data-slot="${slot}"]`);
+			const link = item?.querySelector('a');
+			if (!item || !link) continue;
+
+			const pull = row.pulls[slot];
+			if (!pull) {
+				item.hidden = true;
+				continue;
+			}
+
+			item.hidden = false;
+			link.href = pull.href;
+			link.querySelector('.num').textContent = `#${pull.number}`;
+			link.querySelector('.title').textContent = pull.title;
+			link.querySelector('.user').textContent = `@${pull.user}`;
+			const when = link.querySelector('.when');
+			when.setAttribute('data-ts', pull.updatedAt);
+			when.textContent = relTime(pull.updatedAt);
+		}
+
+		if (changed) {
+			box.classList.remove('is-new');
+			void box.offsetWidth;
+			box.classList.add('is-new');
+		}
+	}
+
+	function paintAll(changedRepos = new Set()) {
+		for (const repo of repos) paintRepo(repo, changedRepos.has(repo));
+		root?.classList.toggle('is-hot', changedRepos.size > 0);
 		window.clearTimeout(breathTimer);
-		breathTimer = window.setTimeout(() => root?.classList.remove('is-hot'), 1800);
+		if (changedRepos.size > 0) {
+			breathTimer = window.setTimeout(() => {
+				root?.classList.remove('is-hot');
+				grid?.querySelectorAll('.box.is-new').forEach((box) => box.classList.remove('is-new'));
+			}, 1800);
+		}
 	}
 
 	async function fetchRepo(repo) {
 		const response = await fetch(
-			`https://api.github.com/repos/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=2`,
+			`https://api.github.com/repos/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=3`,
 			{
 				headers: {
 					Accept: 'application/vnd.github+json',
@@ -111,17 +155,18 @@ const repos = [...GITHUB_WATCH_REPOS];
 		);
 		if (!response.ok) return null;
 		const pulls = await response.json();
-		const pull = pulls?.[0];
-		if (!pull) return null;
 		return {
-			id: `pr-${repo}-${pull.number}`,
-			repo,
-			number: pull.number,
-			title: pull.title,
-			href: pull.html_url,
-			user: pull.user?.login ?? 'unknown',
-			updatedAt: pull.updated_at,
-			state: pull.state,
+			...repoMeta(repo),
+			pulls: (pulls ?? []).slice(0, 3).map((pull) => ({
+				id: `pr-${repo}-${pull.number}`,
+				repo,
+				number: pull.number,
+				title: pull.title,
+				href: pull.html_url,
+				user: pull.user?.login ?? 'unknown',
+				updatedAt: pull.updated_at,
+				state: pull.state,
+			})),
 		};
 	}
 
@@ -136,23 +181,21 @@ const repos = [...GITHUB_WATCH_REPOS];
 		const results = await Promise.all(slice.map((repo) => fetchRepo(repo).catch(() => null)));
 		const changed = new Set();
 
-		for (const item of results) {
-			if (!item) continue;
-			const prev = byRepo.get(item.repo);
-			byRepo.set(item.repo, item);
-			if (!prev || prev.id !== item.id || prev.updatedAt !== item.updatedAt) {
-				changed.add(item.id);
-			}
+		for (const row of results) {
+			if (!row) continue;
+			const prev = byRepo.get(row.repo);
+			const prevKey = (prev?.pulls ?? []).map((p) => `${p.id}:${p.updatedAt}`).join('|');
+			const nextKey = row.pulls.map((p) => `${p.id}:${p.updatedAt}`).join('|');
+			byRepo.set(row.repo, row);
+			if (prevKey !== nextKey) changed.add(row.repo);
 		}
 
-		render(changed);
+		paintAll(changed);
 		deadline = Date.now() + REFRESH_MS;
 	}
 
-	document.querySelectorAll('#pulse-lanes .when[data-ts]').forEach((node) => {
-		node.textContent = relTime(node.getAttribute('data-ts'));
-	});
-
+	paintTimes();
+	window.setInterval(paintTimes, TIME_TICK_MS);
 	window.setInterval(refreshBatch, REFRESH_MS);
 	window.setTimeout(refreshBatch, 12_000);
 
@@ -162,7 +205,8 @@ const repos = [...GITHUB_WATCH_REPOS];
 </script>
 
 <style>
-	.pulse {
+	/* Keep styles on #gh-pulse so live PR updates never drop the grid design. */
+	#gh-pulse.guns {
 		position: relative;
 		display: grid;
 		gap: 1rem;
@@ -170,7 +214,7 @@ const repos = [...GITHUB_WATCH_REPOS];
 		isolation: isolate;
 	}
 
-	.pulse::before {
+	#gh-pulse.guns::before {
 		content: '';
 		position: absolute;
 		inset: -0.5rem -0.75rem auto;
@@ -179,17 +223,17 @@ const repos = [...GITHUB_WATCH_REPOS];
 		background: radial-gradient(ellipse at 20% 40%, color-mix(in srgb, var(--color-secondary) 12%, transparent), transparent 60%),
 			radial-gradient(ellipse at 80% 20%, color-mix(in srgb, var(--color-on-surface) 5%, transparent), transparent 55%);
 		opacity: 0.65;
-		animation: aura 7s ease-in-out infinite;
+		animation: gh-aura 7s ease-in-out infinite;
 		pointer-events: none;
 		z-index: -1;
 	}
 
-	.pulse.is-hot::before {
+	#gh-pulse.guns.is-hot::before {
 		animation-duration: 2.4s;
 		opacity: 1;
 	}
 
-	.pulse-head {
+	#gh-pulse :global(.guns-head) {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
@@ -199,118 +243,147 @@ const repos = [...GITHUB_WATCH_REPOS];
 		text-transform: uppercase;
 	}
 
-	.breath {
+	#gh-pulse :global(.breath) {
 		width: 0.45rem;
 		height: 0.45rem;
 		border-radius: 999px;
 		background: var(--color-secondary);
 		box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-secondary) 55%, transparent);
-		animation: breath 2.8s ease-out infinite;
+		animation: gh-breath 2.8s ease-out infinite;
 	}
 
-	.live-label {
+	#gh-pulse :global(.live-label) {
 		color: var(--color-secondary);
 		font-weight: 600;
 	}
 
-	.lanes {
+	#gh-pulse :global(.grid) {
 		list-style: none;
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.35rem;
-		counter-reset: lane;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 0.85rem;
 	}
 
-	.lane {
-		counter-increment: lane;
-		animation: settle 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	#gh-pulse :global(.box) {
+		display: grid;
+		grid-template-rows: auto 1fr;
+		gap: 0.65rem;
+		min-width: 0;
+		padding: 0.85rem 0.8rem 0.75rem;
+		border: 1px solid var(--color-border);
+		border-radius: 0.3rem;
+		background: color-mix(in srgb, var(--color-surface-light) 90%, transparent);
+		animation: gh-settle 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 		animation-delay: calc(var(--i, 0) * 35ms);
 	}
 
-	.lane.is-new {
-		animation: rise 700ms cubic-bezier(0.22, 1, 0.36, 1);
+	#gh-pulse :global(.box.is-new) {
+		animation: gh-rise 700ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 
-	.lane-link {
-		display: grid;
-		grid-template-columns: minmax(7.5rem, 11rem) minmax(0, 1fr) auto;
-		gap: 0.75rem 1rem;
-		align-items: baseline;
-		padding: 0.7rem 0.85rem;
-		border-radius: 0.25rem;
-		background: color-mix(in srgb, var(--color-surface-light) 88%, transparent);
-		border: 1px solid transparent;
-		transition:
-			background 180ms linear,
-			border-color 180ms linear,
-			transform 180ms ease;
+	#gh-pulse :global(.box-head) {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		min-width: 0;
 	}
 
-	.lane-link:hover {
-		background: var(--color-surface-container-low);
-		border-color: var(--color-border);
-		transform: translateY(-1px);
+	#gh-pulse :global(.avatar) {
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: 0.3rem;
+		object-fit: cover;
+		flex-shrink: 0;
+		background: var(--color-surface-container);
 	}
 
-	.repo {
+	#gh-pulse :global(.repo-name) {
+		min-width: 0;
 		font-family: var(--font-mono);
 		font-size: 0.6875rem;
 		font-weight: 600;
-		letter-spacing: 0.02em;
-		color: var(--color-secondary);
-		white-space: nowrap;
+		letter-spacing: 0.01em;
+		line-height: 1.3;
+		color: var(--color-on-surface);
 		overflow: hidden;
 		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
-	.repo::before {
-		content: counter(lane, decimal-leading-zero) ' · ';
-		color: var(--color-outline);
+	#gh-pulse :global(.owner) {
+		color: var(--color-on-surface-variant);
 		font-weight: 500;
 	}
 
-	.pr {
-		display: flex;
+	#gh-pulse :global(.prs) {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
 		gap: 0.45rem;
+		align-content: start;
+	}
+
+	#gh-pulse :global(.pr a) {
+		display: grid;
+		gap: 0.15rem;
 		min-width: 0;
-		align-items: baseline;
+		padding: 0.35rem 0.2rem;
+		border-radius: 0.2rem;
+		transition: background 160ms linear;
 	}
 
-	.num {
+	#gh-pulse :global(.pr a:hover) {
+		background: var(--color-surface-container-low);
+	}
+
+	#gh-pulse :global(.num) {
 		font-family: var(--font-mono);
-		font-size: 0.6875rem;
+		font-size: 0.625rem;
 		color: var(--color-outline);
-		flex-shrink: 0;
 	}
 
-	.title {
+	#gh-pulse :global(.title) {
 		font-family: var(--font-display);
-		font-size: 0.98rem;
+		font-size: 0.82rem;
 		font-weight: 600;
 		letter-spacing: -0.015em;
 		line-height: 1.3;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	#gh-pulse :global(.meta) {
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--color-on-surface-variant);
+		display: inline-flex;
+		gap: 0.4rem;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.who {
+	#gh-pulse :global(.when) {
+		color: var(--color-outline);
+	}
+
+	#gh-pulse :global(.empty) {
 		font-family: var(--font-mono);
 		font-size: 0.625rem;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
-		color: var(--color-on-surface-variant);
-		white-space: nowrap;
-		display: inline-flex;
-		gap: 0.45rem;
-	}
-
-	.when {
 		color: var(--color-outline);
+		padding: 0.35rem 0.2rem;
 	}
 
-	@keyframes breath {
+	@keyframes gh-breath {
 		0% {
 			transform: scale(1);
 			box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-secondary) 45%, transparent);
@@ -325,7 +398,7 @@ const repos = [...GITHUB_WATCH_REPOS];
 		}
 	}
 
-	@keyframes aura {
+	@keyframes gh-aura {
 		0%,
 		100% {
 			transform: scale(1) translateY(0);
@@ -337,10 +410,10 @@ const repos = [...GITHUB_WATCH_REPOS];
 		}
 	}
 
-	@keyframes rise {
+	@keyframes gh-rise {
 		from {
 			opacity: 0;
-			transform: translateY(-0.65rem);
+			transform: translateY(-0.55rem);
 			filter: blur(1px);
 		}
 		to {
@@ -350,7 +423,7 @@ const repos = [...GITHUB_WATCH_REPOS];
 		}
 	}
 
-	@keyframes settle {
+	@keyframes gh-settle {
 		from {
 			opacity: 0;
 			transform: translateY(0.35rem);
@@ -361,14 +434,21 @@ const repos = [...GITHUB_WATCH_REPOS];
 		}
 	}
 
-	@media (max-width: 800px) {
-		.lane-link {
-			grid-template-columns: 1fr;
-			gap: 0.25rem;
+	@media (max-width: 1100px) {
+		#gh-pulse :global(.grid) {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
 		}
+	}
 
-		.who {
-			justify-content: space-between;
+	@media (max-width: 720px) {
+		#gh-pulse :global(.grid) {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 480px) {
+		#gh-pulse :global(.grid) {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

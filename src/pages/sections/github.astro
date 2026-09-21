@@ -6,26 +6,24 @@ import UmeRule from '../../components/UmeRule.astro';
 import { fetchGithubWatchPulls, fetchHottestGithubToday } from '../../lib/feeds';
 import { site } from '../../data/site';
 
-const base = import.meta.env.BASE_URL;
 const hot = await fetchHottestGithubToday(6);
 const pulse = await fetchGithubWatchPulls();
 ---
 
-<BaseLayout title={`GitHub · ${site.name}`} description="Rising repositories and recent pull requests.">
+<BaseLayout title={`GitHub · ${site.name}`} description="Hot repositories and live pull requests from flagship projects.">
 	<section class="detail container-page">
-		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
 		<header class="head">
 			<h1>GitHub</h1>
 			<UmeRule />
 		</header>
 
 		<div class="block">
-			<h2>Rising</h2>
+			<h2>Hot Repos</h2>
 			<FeedList items={hot} source="github" plan={[2, 2, 2]} empty="Nothing rising right now." />
 		</div>
 
 		<div class="block">
-			<h2>Activity</h2>
+			<h2>The Big Guns</h2>
 			<GithubLivePulse initial={pulse} />
 		</div>
 	</section>
@@ -36,13 +34,6 @@ const pulse = await fetchGithubWatchPulls();
 		padding: 2.5rem 0 4rem;
 		display: grid;
 		gap: 2rem;
-	}
-	.back {
-		display: inline-block;
-		font-family: var(--font-mono);
-		font-size: 0.6875rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
 	}
 	.head {
 		display: grid;

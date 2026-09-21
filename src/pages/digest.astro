@@ -2,12 +2,10 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DigestCard from '../components/DigestCard.astro';
 import UmeRule from '../components/UmeRule.astro';
-import { countBySource } from '../data/digest';
 import { buildLiveDigestBands } from '../lib/buildDigest';
 import { site } from '../data/site';
 
 const digestBands = await buildLiveDigestBands();
-const counts = countBySource(digestBands);
 const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map((card) => [card.id, card])));
 ---
 
@@ -22,13 +20,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 			<p class="lede">
 				Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
 			</p>
-			<div class="filters" id="source-filters">
-				<button type="button" class="chip is-on" data-filter="all">All ({counts.all})</button>
-				<button type="button" class="chip" data-filter="hn">HN ({counts.hn})</button>
-				<button type="button" class="chip" data-filter="x">X ({counts.x})</button>
-				<button type="button" class="chip" data-filter="github">GitHub ({counts.github})</button>
-				<button type="button" class="chip" data-filter="papers">Papers ({counts.papers})</button>
-			</div>
 		</header>
 
 		{
@@ -68,8 +59,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 </BaseLayout>
 
 <script define:vars={{ catalog }}>
-	const filters = document.getElementById('source-filters');
-	const cards = [...document.querySelectorAll('.card')];
 	const modal = document.getElementById('preview-modal');
 	const modalTag = document.getElementById('modal-tag');
 	const modalRead = document.getElementById('modal-read');
@@ -77,20 +66,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 	const modalContent = document.getElementById('modal-content');
 	const modalSource = document.getElementById('modal-source-id');
 	const modalLink = document.getElementById('modal-link');
-
-	filters?.addEventListener('click', (event) => {
-		const button = event.target.closest('[data-filter]');
-		if (!button) return;
-		const next = button.dataset.filter || 'all';
-		filters.querySelectorAll('.chip').forEach((chip) => chip.classList.toggle('is-on', chip === button));
-		cards.forEach((card) => {
-			card.hidden = next !== 'all' && card.dataset.source !== next;
-		});
-		document.querySelectorAll('.band').forEach((band) => {
-			const visible = [...band.querySelectorAll('.card')].some((card) => !card.hidden);
-			band.hidden = !visible;
-		});
-	});
 
 	function openPreview(id) {
 		const item = catalog[id];
@@ -155,36 +130,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 		font-size: 1rem;
 		line-height: 1.65;
 		color: var(--color-on-surface-variant);
-	}
-
-	.filters {
-		display: inline-flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 0.25rem;
-		margin-top: 0.5rem;
-		padding: 0.25rem;
-		border-radius: 0.25rem;
-		background: var(--color-surface-container);
-	}
-
-	.chip {
-		padding: 0.3rem 0.65rem;
-		border: 0;
-		border-radius: 0.25rem;
-		background: transparent;
-		color: var(--color-on-surface-variant);
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		font-weight: 600;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		cursor: pointer;
-	}
-
-	.chip.is-on {
-		background: var(--color-primary);
-		color: var(--color-on-primary);
 	}
 
 	.band {

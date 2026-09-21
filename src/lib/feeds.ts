@@ -375,6 +375,15 @@ export type GithubPullSignal = {
 	state: string;
 };
 
+export type GithubRepoPulse = {
+	repo: string;
+	owner: string;
+	name: string;
+	href: string;
+	avatar: string;
+	pulls: GithubPullSignal[];
+};
+
 type GithubPull = {
 	id: number;
 	number: number;
@@ -385,31 +394,46 @@ type GithubPull = {
 	user?: { login?: string } | null;
 };
 
-/** Seed the live pulse at build time (one request per watched repo). */
-export async function fetchGithubWatchPulls(): Promise<GithubPullSignal[]> {
-	const batches = await Promise.all(
+export function githubRepoMeta(repo: string): Pick<GithubRepoPulse, 'repo' | 'owner' | 'name' | 'href' | 'avatar'> {
+	const [owner, name] = repo.split('/');
+	return {
+		repo,
+		owner: owner ?? repo,
+		name: name ?? repo,
+		href: `https://github.com/${repo}`,
+		avatar: `https://github.com/${owner}.png?size=80`,
+	};
+}
+
+function mapGithubPulls(repo: string, pulls: GithubPull[] | null | undefined, limit = 3): GithubPullSignal[] {
+	return (pulls ?? []).slice(0, limit).map((pull) => ({
+		id: `pr-${repo}-${pull.number}`,
+		repo,
+		number: pull.number,
+		title: pull.title,
+		href: pull.html_url,
+		user: pull.user?.login ?? 'unknown',
+		updatedAt: pull.updated_at,
+		state: pull.state,
+	}));
+}
+
+/** Seed The Big Guns grid at build time — top 3 recent PRs per watched repo. */
+export async function fetchGithubWatchPulls(): Promise<GithubRepoPulse[]> {
+	const rows = await Promise.all(
 		GITHUB_WATCH_REPOS.map(async (repo) => {
 			const pulls = await fetchJson<GithubPull[]>(
-				`https://api.github.com/repos/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=2`,
+				`https://api.github.com/repos/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=3`,
 				{ headers: { 'X-GitHub-Api-Version': '2022-11-28' } },
 			);
-			return (pulls ?? []).slice(0, 1).map((pull) => ({
-				id: `pr-${repo}-${pull.number}`,
-				repo,
-				number: pull.number,
-				title: pull.title,
-				href: pull.html_url,
-				user: pull.user?.login ?? 'unknown',
-				updatedAt: pull.updated_at,
-				state: pull.state,
-			}));
+			return {
+				...githubRepoMeta(repo),
+				pulls: mapGithubPulls(repo, pulls, 3),
+			};
 		}),
 	);
 
-	return batches
-		.flat()
-		.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
-		.slice(0, 10);
+	return rows;
 }
 
 export async function fetchPapers(limit = 12): Promise<FeedItem[]> {
