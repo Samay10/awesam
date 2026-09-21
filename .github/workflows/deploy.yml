@@ -33,9 +33,9 @@ jobs:
         with:
           path: |
             .cache/stories
-          key: enrich-v5-${{ github.run_id }}
+          key: enrich-v6-${{ github.run_id }}
           restore-keys: |
-            enrich-v5-
+            enrich-v6-
       - name: Install
         run: npm ci
       - name: Build

@@ -3,6 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import UmeRule from '../../components/UmeRule.astro';
 import { allStories, loadCatalog, type Story } from '../../lib/catalog';
 import { site } from '../../data/site';
+import { toPlainText } from '../../lib/plain';
 
 export async function getStaticPaths() {
 	const catalog = await loadCatalog();
@@ -28,11 +29,15 @@ const sectionHref =
 				: story.source === 'papers'
 					? `${base}sections/papers/`
 					: `${base}digest/`;
+const title = toPlainText(story.title);
+const dek = toPlainText(story.whyRead);
+const paragraphs = story.paragraphs.map((paragraph) => toPlainText(paragraph)).filter(Boolean);
+const takeaway = toPlainText(story.takeaway ?? '');
 const originalLabel =
 	story.source === 'github' ? 'View repository' : story.source === 'papers' ? 'Read the paper' : 'Read original';
 ---
 
-<BaseLayout title={`${story.title} · ${site.name}`} description={story.lede}>
+<BaseLayout title={`${title} · ${site.name}`} description={toPlainText(story.lede)}>
 	<article class="read">
 		<div class="container-page">
 			<a class="back ink-link" href={sectionHref}>← {story.badge}</a>
@@ -43,17 +48,17 @@ const originalLabel =
 					<span class="sep">·</span>
 					<span>{story.meta}</span>
 				</p>
-				<h1>{story.title}</h1>
+				<h1>{title}</h1>
 				<UmeRule />
-				{story.whyRead && <p class="dek">{story.whyRead}</p>}
+				{dek && <p class="dek">{dek}</p>}
 			</header>
 
 			<div class="body measure">
-				{story.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
-				{story.takeaway && (
+				{paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+				{takeaway && (
 					<p class="takeaway">
 						<span class="takeaway-label">Takeaway</span>
-						{story.takeaway}
+						{takeaway}
 					</p>
 				)}
 			</div>

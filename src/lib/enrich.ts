@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { DigestSource } from '../data/digest';
 import { CATALOG_PATH, storySlug, type Story, type StoryCatalog } from './catalog';
 import { TEXT_MODEL, chatCompletion, hasTextKey } from './ai';
+import { toPlainText } from './plain';
 import {
 	fetchHackerNews,
 	fetchHottestGithubToday,
@@ -15,7 +16,7 @@ import {
 } from './feeds';
 
 /** Bump to invalidate prior prompt caches. */
-const PROMPT_VERSION = 'v5-author';
+const PROMPT_VERSION = 'v6-plain';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
 const TEXT_CONCURRENCY = 1;
@@ -48,7 +49,7 @@ Hard bans:
 - No AI slop: delve, landscape, robust, leverage, unlock, empower, game-changer, "in today's world", "it's important to note", "A closer look at", "on the wire", "source of truth", "Privacy advocates are sounding the alarm", "The broader implication is", "helps engineers gauge/understand".
 - Do not invent numbers, quotes, authors, benchmarks, or conclusions missing from the source notes.
 - Never copy the source verbatim. Rewrite.
-- Plain prose only inside JSON strings — no markdown, bullets, headings, or numbered lists.
+- Plain prose only inside JSON strings — no markdown, bullets, headings, numbered lists, HTML tags, comments, or entities (`&quot;`, `&#39;`, `&amp;`).
 
 Structure:
 - paragraphs: at least 4 proper paragraphs for a 3–4 minute read (each paragraph several sentences; not one-liners).
@@ -116,15 +117,19 @@ function minutesFor(paragraphs: string[], takeaway: string) {
 }
 
 const SLOP =
-	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article|PR)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note|Here is a summary|Privacy advocates are sounding|The broader implication|helps engineers (gauge|understand)|Understanding the .+ helps/i;
+	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article|PR)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note|Here is a summary|Privacy advocates are sounding|The broader implication|helps engineers (gauge|understand)|Understanding the .+ helps|What we can verify|Why it showed up here|ranking and relevance filters|listing description is thin|Skip the hype layer|desk fallback/i;
+
+const MARKUP = /<!--|<\/?[a-z][^>]*>|&(?:quot|amp|lt|gt|nbsp|#\d+|#x[0-9a-f]+);|&39/i;
 
 function cleanProse(text: string) {
-	return text
+	return toPlainText(text)
 		.replace(/```[\s\S]*?```/g, ' ')
-		.replace(/[*_`#]+/g, '')
-		.replace(/^\s*[-•]\s+/gm, '')
 		.replace(/\s+/g, ' ')
 		.trim();
+}
+
+function looksDirty(text: string) {
+	return MARKUP.test(text) || SLOP.test(text);
 }
 
 function normalizeParagraphs(raw: unknown): string[] {
@@ -152,50 +157,20 @@ function isWeakDraft(draft: Draft | null | undefined, title: string, source: Dig
 	if (!draft?.lede || !draft.takeaway) return true;
 	if (draft.paragraphs.length < minParagraphs(source)) return true;
 	const blob = [draft.lede, draft.whyRead, draft.takeaway, ...draft.paragraphs].join('\n');
-	if (SLOP.test(blob)) return true;
+	if (looksDirty(blob)) return true;
 	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return true;
 	const words = [...draft.paragraphs, draft.takeaway].join(' ').split(/\s+/).filter(Boolean).length;
 	if (words < minWords(source)) return true;
 	return false;
 }
 
-/** Accept a slightly short draft rather than dropping the story entirely. */
 function isUsableDraft(draft: Draft | null | undefined, title: string) {
 	if (!draft?.lede || draft.paragraphs.length < 2 || !draft.takeaway) return false;
 	const blob = [draft.lede, draft.whyRead, draft.takeaway, ...draft.paragraphs].join('\n');
-	if (SLOP.test(blob)) return false;
+	if (looksDirty(blob)) return false;
 	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return false;
+	if (draft.paragraphs.some((paragraph) => paragraph.length < 80)) return false;
 	return true;
-}
-
-function deskFallback(item: FeedItem, source: DigestSource): Draft {
-	const note = cleanProse(item.summary || '');
-	const title = cleanProse(item.title);
-	const meta = cleanProse(item.meta || '');
-	const lede =
-		note ||
-		`${title}${meta ? ` — ${meta}` : ''}. Rising on ${item.source}; open the original for implementation detail.`;
-	const base = note || `${title} is circulating on ${item.source}${meta ? ` (${meta})` : ''}.`;
-	const paragraphs = [
-		base,
-		`What we can verify from the feed: ${title}. ${note ? 'The listing description is thin, so treat numbers and claims as provisional until you check the primary source.' : 'No long abstract shipped with the listing — check the linked page for the real detail.'}`,
-		`Why it showed up here: ${source === 'github' ? 'star velocity and tech keywords' : source === 'papers' ? 'venue/lab signal and recency' : 'ranking and relevance filters'} put it in the wire. ${meta ? `Signals: ${meta}.` : ''}`,
-		`If you dig in, start with the mechanism or API surface, then decide whether the claim holds for your stack. Skip the hype layer.`,
-	]
-		.map(cleanProse)
-		.filter(Boolean)
-		.slice(0, Math.max(4, minParagraphs(source)));
-
-	while (paragraphs.length < minParagraphs(source)) {
-		paragraphs.push(`Primary link: ${item.href}`);
-	}
-
-	return {
-		lede: lede.slice(0, 420),
-		whyRead: meta || `${item.source} signal`,
-		paragraphs,
-		takeaway: `Open the original before you trust details beyond the listing — ${title} is on the wire for a reason, but the feed blurb is not a full brief.`,
-	};
 }
 
 function extractJson(text: string): Draft | null {
@@ -237,7 +212,7 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 		`Source label: ${item.source}`,
 		`Title: ${item.title}`,
 		item.summary
-			? `Source notes (read carefully; stay faithful):\n${item.summary}`
+			? `Source notes (plain text already — stay faithful, do not echo markup):\n${toPlainText(item.summary)}`
 			: 'Source notes: title/meta only — do not invent details, numbers, or conclusions.',
 		item.meta ? `Signals: ${item.meta}` : '',
 		`URL (orientation only): ${item.href}`,
@@ -314,9 +289,17 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		isUsableDraft(cached.draft, item.title);
 
 	let draft = cacheOk ? cached!.draft : await draftFromModel(item, source);
+	if (draft) {
+		draft = {
+			lede: cleanProse(draft.lede),
+			whyRead: cleanProse(draft.whyRead),
+			paragraphs: draft.paragraphs.map(cleanProse).filter((paragraph) => paragraph.length > 40),
+			takeaway: cleanProse(draft.takeaway),
+		};
+	}
 	if (!draft || !isUsableDraft(draft, item.title)) {
-		console.warn(`[enrich] using desk fallback for ${item.id}`);
-		draft = deskFallback(item, source);
+		console.warn(`[enrich] skipping ${item.id} — briefing was empty or still had markup`);
+		return null;
 	}
 
 	await writeCache({
@@ -330,7 +313,7 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		id,
 		source,
 		badge: badgeFor(source, item),
-		title: item.title,
+		title: toPlainText(item.title),
 		lede: draft.lede,
 		whyRead: draft.whyRead,
 		paragraphs: draft.paragraphs,

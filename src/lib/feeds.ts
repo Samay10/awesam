@@ -1,3 +1,5 @@
+import { clip } from './plain';
+
 export type FeedItem = {
 	id: string;
 	title: string;
@@ -129,20 +131,17 @@ function isoDate(daysAgo: number) {
 }
 
 function clean(text: string, max = 220) {
-	const next = decodeXml(text).replace(/\s+/g, ' ').trim();
-	return next.length > max ? `${next.slice(0, max - 1)}…` : next;
+	return clip(text, max);
 }
 
-function decodeXml(text: string) {
-	return text
-		.replace(/<!\[CDATA\[|\]\]>/g, '')
-		.replace(/&nbsp;/gi, ' ')
-		.replace(/&apos;/g, "'")
-		.replace(/&#39;/g, "'")
-		.replace(/&quot;/g, '"')
-		.replace(/&lt;/g, '<')
-		.replace(/&gt;/g, '>')
-		.replace(/&amp;/g, '&');
+function feedBody(node: string, max: number) {
+	const encoded =
+		node.match(/<content:encoded[^>]*>([\s\S]*?)<\/content:encoded>/i)?.[1] ??
+		node.match(/<content[^>]*>([\s\S]*?)<\/content>/i)?.[1] ??
+		'';
+	const desc = xmlTag(node, 'description') || xmlTag(node, 'summary');
+	const raw = encoded.length > desc.length ? encoded : desc;
+	return clip(raw, max);
 }
 
 function matchesAny(text: string, words: string[]) {
@@ -760,13 +759,7 @@ async function fetchRssOutlet(
 		.slice(0, 12)
 		.map((node, index) => {
 			const title = clean(xmlTag(node, 'title'), 140);
-			const summary = clean(
-				(xmlTag(node, 'description') || xmlTag(node, 'summary') || xmlTag(node, 'content') || title).replace(
-					/<[^>]+>/g,
-					' ',
-				),
-				240,
-			);
+			const summary = feedBody(node, prefix === 'reddit' ? 1600 : 700) || title;
 			const href = feedLink(node) || url;
 			const date = (xmlTag(node, 'pubDate') || xmlTag(node, 'updated') || xmlTag(node, 'published') || '').slice(0, 25);
 			const score = relevanceScore(`${title} ${summary}`, weight);
@@ -845,9 +838,8 @@ async function fetchHandleFeed(
 			.slice(0, 8)
 			.map((node, index) => {
 				const rawTitle = xmlTag(node, 'title') || xmlTag(node, 'description');
-				const rawDesc = xmlTag(node, 'description') || rawTitle;
 				const full = clean(rawTitle.replace(/^RT\s+@?\w+:\s*/i, ''), 280);
-				const body = clean((rawDesc || rawTitle).replace(/<[^>]+>/g, ' ').replace(/^RT\s+@?\w+:\s*/i, ''), 320);
+				const body = feedBody(node, 900).replace(/^RT\s+@?\w+:\s*/i, '');
 				const title = clean(full, 96);
 				const summary = body.length >= full.length ? body : full;
 				const href =
