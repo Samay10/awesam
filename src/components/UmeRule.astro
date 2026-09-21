@@ -1,0 +1,51 @@
+---
+/** Decorative ume blossom between a heading and its lede. */
+---
+
+<div class="rule" aria-hidden="true">
+	<span class="line left"></span>
+	<svg class="mark" viewBox="0 0 24 24" fill="currentColor">
+		<circle cx="12" cy="6.5" opacity="0.85" r="3.8"></circle>
+		<circle cx="17.2" cy="10.3" opacity="0.85" r="3.8"></circle>
+		<circle cx="15.2" cy="16.5" opacity="0.85" r="3.8"></circle>
+		<circle cx="8.8" cy="16.5" opacity="0.85" r="3.8"></circle>
+		<circle cx="6.8" cy="10.3" opacity="0.85" r="3.8"></circle>
+		<circle class="heart" cx="12" cy="12" r="2"></circle>
+	</svg>
+	<span class="line right"></span>
+</div>
+
+<style>
+	.rule {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.7rem;
+		opacity: 0.82;
+	}
+
+	.line {
+		display: block;
+		width: 4.5rem;
+		height: 1px;
+	}
+
+	.left {
+		background: linear-gradient(to right, transparent, var(--flora-line) 30%, var(--flora-line-deep));
+	}
+
+	.right {
+		background: linear-gradient(to left, transparent, var(--flora-line) 30%, var(--flora-line-deep));
+	}
+
+	.mark {
+		width: 0.9rem;
+		height: 0.9rem;
+		color: var(--color-secondary);
+		flex-shrink: 0;
+	}
+
+	.heart {
+		fill: var(--color-surface);
+	}
+</style>

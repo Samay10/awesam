@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import FeedList from '../../components/FeedList.astro';
 import GithubLivePulse from '../../components/GithubLivePulse.astro';
+import UmeRule from '../../components/UmeRule.astro';
 import { fetchGithubWatchPulls, fetchHottestGithubToday } from '../../lib/feeds';
 import { site } from '../../data/site';
 
@@ -15,6 +16,7 @@ const pulse = await fetchGithubWatchPulls();
 		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
 		<header class="head">
 			<h1>GitHub</h1>
+			<UmeRule />
 		</header>
 
 		<div class="block">
@@ -43,12 +45,16 @@ const pulse = await fetchGithubWatchPulls();
 		text-transform: uppercase;
 	}
 	.head {
-		margin: 0;
+		display: grid;
+		justify-items: center;
+		text-align: center;
+		gap: 0.85rem;
+		padding: 0.35rem 0 0.25rem;
 	}
 	h1 {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: clamp(2rem, 5vw, 2.75rem);
+		font-size: clamp(2.15rem, 5.5vw, 2.85rem);
 		font-weight: 600;
 		letter-spacing: -0.02em;
 	}

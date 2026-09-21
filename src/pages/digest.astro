@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DigestCard from '../components/DigestCard.astro';
+import UmeRule from '../components/UmeRule.astro';
 import { countBySource } from '../data/digest';
 import { buildLiveDigestBands } from '../lib/buildDigest';
 import { site } from '../data/site';
@@ -16,20 +17,17 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 >
 	<div class="canvas container-page">
 		<header class="mast">
-			<div class="hero-grid">
-				<div class="hero-copy">
-					<h1>The Technical Digest</h1>
-					<p>
-						Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
-					</p>
-				</div>
-				<div class="filters" id="source-filters">
-					<button type="button" class="chip is-on" data-filter="all">All ({counts.all})</button>
-					<button type="button" class="chip" data-filter="hn">HN ({counts.hn})</button>
-					<button type="button" class="chip" data-filter="x">X ({counts.x})</button>
-					<button type="button" class="chip" data-filter="github">GitHub ({counts.github})</button>
-					<button type="button" class="chip" data-filter="papers">Papers ({counts.papers})</button>
-				</div>
+			<h1>The Technical Digest</h1>
+			<UmeRule />
+			<p class="lede">
+				Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
+			</p>
+			<div class="filters" id="source-filters">
+				<button type="button" class="chip is-on" data-filter="all">All ({counts.all})</button>
+				<button type="button" class="chip" data-filter="hn">HN ({counts.hn})</button>
+				<button type="button" class="chip" data-filter="x">X ({counts.x})</button>
+				<button type="button" class="chip" data-filter="github">GitHub ({counts.github})</button>
+				<button type="button" class="chip" data-filter="papers">Papers ({counts.papers})</button>
 			</div>
 		</header>
 
@@ -127,48 +125,47 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 
 <style>
 	.canvas {
-		padding: 2.5rem 0 3.5rem;
+		padding: 2.75rem 0 3.5rem;
 		display: grid;
-		gap: 2.5rem;
+		gap: 2.75rem;
 	}
 
 	.mast {
+		position: relative;
+		z-index: 1;
 		display: grid;
-		gap: 1.25rem;
-	}
-
-	.hero-grid {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 1.5rem;
-		align-items: end;
+		justify-items: center;
+		text-align: center;
+		gap: 1rem;
+		padding: 1.25rem 0 0.5rem;
 	}
 
 	h1 {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: clamp(2rem, 5vw, 2.75rem);
+		font-size: clamp(2.15rem, 5.5vw, 2.85rem);
 		font-weight: 600;
 		letter-spacing: -0.02em;
-		line-height: 1.15;
+		line-height: 1.12;
 	}
 
-	.hero-copy p {
-		margin: 0.65rem 0 0;
-		max-width: 42rem;
+	.lede {
+		margin: 0;
+		max-width: 38rem;
 		font-size: 1rem;
-		line-height: 1.6;
+		line-height: 1.65;
 		color: var(--color-on-surface-variant);
 	}
 
 	.filters {
 		display: inline-flex;
 		flex-wrap: wrap;
+		justify-content: center;
 		gap: 0.25rem;
+		margin-top: 0.5rem;
 		padding: 0.25rem;
 		border-radius: 0.25rem;
 		background: var(--color-surface-container);
-		justify-self: start;
 	}
 
 	.chip {
@@ -320,14 +317,6 @@ const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map(
 	}
 
 	@media (min-width: 900px) {
-		.hero-grid {
-			grid-template-columns: minmax(0, 8fr) auto;
-		}
-
-		.filters {
-			justify-self: end;
-		}
-
 		.grid.two {
 			grid-template-columns: 1fr 1fr;
 		}

@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostList from '../../components/PostList.astro';
+import UmeRule from '../../components/UmeRule.astro';
 import { site } from '../../data/site';
 
 const base = import.meta.env.BASE_URL;
@@ -22,6 +23,7 @@ const posts = (await getCollection('posts'))
 		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
 		<header class="head">
 			<h1>Articles</h1>
+			<UmeRule />
 		</header>
 		<PostList posts={posts} />
 	</section>
@@ -31,7 +33,7 @@ const posts = (await getCollection('posts'))
 	.detail {
 		padding: 2.5rem 0 4rem;
 		display: grid;
-		gap: 1.5rem;
+		gap: 1.75rem;
 	}
 	.back {
 		display: inline-block;
@@ -41,12 +43,16 @@ const posts = (await getCollection('posts'))
 		text-transform: uppercase;
 	}
 	.head {
-		margin: 0;
+		display: grid;
+		justify-items: center;
+		text-align: center;
+		gap: 0.85rem;
+		padding: 0.35rem 0 0.25rem;
 	}
 	h1 {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: clamp(2rem, 5vw, 2.75rem);
+		font-size: clamp(2.15rem, 5.5vw, 2.85rem);
 		font-weight: 600;
 		letter-spacing: -0.02em;
 	}

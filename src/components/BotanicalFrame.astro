@@ -12,7 +12,7 @@
 
 <style>
 	.flora {
-		position: fixed;
+		position: absolute;
 		inset: 0;
 		z-index: 0;
 		pointer-events: none;
@@ -28,57 +28,57 @@
 	}
 
 	.flora-defs-canvas {
-		inset: 0;
-		width: 100%;
-		height: 100%;
+		width: 0;
+		height: 0;
+		overflow: hidden;
 	}
 
 	.flora-tl {
-		top: 0;
+		top: calc(3.5rem + env(safe-area-inset-top));
 		left: 0;
-		width: min(300px, 42vw);
-		height: min(240px, 28vw);
+		width: min(320px, 34vw);
+		height: min(250px, 26vw);
 	}
 
 	.flora-tr {
-		top: 0;
+		top: calc(3.5rem + env(safe-area-inset-top));
 		right: 0;
-		width: min(300px, 42vw);
-		height: min(240px, 28vw);
+		width: min(320px, 34vw);
+		height: min(250px, 26vw);
 		transform: scaleX(-1);
 	}
 
 	.flora-bl {
 		bottom: 0;
 		left: 0;
-		width: min(260px, 38vw);
-		height: min(200px, 24vw);
+		width: min(260px, 30vw);
+		height: min(200px, 22vw);
 		transform: scaleY(-1);
 	}
 
 	.flora-br {
 		bottom: 0;
 		right: 0;
-		width: min(260px, 38vw);
-		height: min(200px, 24vw);
+		width: min(260px, 30vw);
+		height: min(200px, 22vw);
 		transform: scale(-1);
 	}
 
 	@media (max-width: 700px) {
 		.flora {
-			opacity: calc(var(--flora-opacity) * 0.72);
+			opacity: calc(var(--flora-opacity) * 0.7);
 		}
 
 		.flora-tl,
 		.flora-tr {
-			width: min(210px, 55vw);
-			height: min(170px, 40vw);
+			width: min(200px, 48vw);
+			height: min(160px, 36vw);
 		}
 
 		.flora-bl,
 		.flora-br {
-			width: min(180px, 48vw);
-			height: min(140px, 34vw);
+			width: min(160px, 42vw);
+			height: min(130px, 30vw);
 		}
 	}
 </style>

@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import UmeRule from '../../components/UmeRule.astro';
 import { site } from '../../data/site';
 
 const base = import.meta.env.BASE_URL;
@@ -14,9 +15,10 @@ const desks = [
 
 <BaseLayout title={`Sections · ${site.name}`} description="Browse digest sections.">
 	<section class="page container-page">
+		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
 		<header class="head">
 			<h1>Sections</h1>
-			<a class="ink-link back" href={`${base}digest/`}>← Digest</a>
+			<UmeRule />
 		</header>
 		<div class="grid">
 			{
@@ -34,36 +36,38 @@ const desks = [
 <style>
 	.page {
 		padding: 2.5rem 0 4rem;
+		display: grid;
+		gap: 1.75rem;
+	}
+
+	.back {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 
 	.head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 0.75rem 1.25rem;
+		display: grid;
+		justify-items: center;
+		text-align: center;
+		gap: 0.85rem;
+		padding: 0.35rem 0 0.25rem;
 	}
 
 	h1 {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: clamp(2rem, 5vw, 2.75rem);
+		font-size: clamp(2.15rem, 5.5vw, 2.85rem);
 		font-weight: 600;
 		letter-spacing: -0.02em;
-	}
-
-	.back {
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
 	}
 
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
 		gap: 1rem;
-		margin-top: 2rem;
+		margin-top: 0.25rem;
 	}
 
 	.box {
