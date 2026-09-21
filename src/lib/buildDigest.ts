@@ -37,12 +37,12 @@ export function feedToCard(item: FeedItem, source: DigestSource, size: DigestCar
 	return {
 		id: item.id,
 		source,
-		badge: source === 'x' ? item.source : BADGE[source],
+		badge: source === 'papers' || source === 'x' ? item.source : BADGE[source],
 		meta: '',
 		title: item.title,
 		abstract: item.summary ?? '',
 		href: item.href,
-		cta: CTA[source],
+		cta: source === 'papers' && !/arxiv/i.test(item.source) ? 'View Paper' : CTA[source],
 		stats,
 		size,
 	};

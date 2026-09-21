@@ -9,19 +9,10 @@ const { initial } = Astro.props;
 const repos = [...GITHUB_WATCH_REPOS];
 ---
 
-<section class="pulse" id="gh-pulse" data-repos={JSON.stringify(repos)}>
+<section class="pulse" id="gh-pulse" data-repos={JSON.stringify(repos)} aria-label="Recent pull requests">
 	<div class="pulse-head">
-		<div class="live-line">
-			<span class="breath" aria-hidden="true"></span>
-			<span class="live-label">Live wire</span>
-			<span class="sep">·</span>
-			<span id="pulse-status">watching {repos.length} flagship repos</span>
-		</div>
-		<div class="meta-line">
-			<span id="pulse-count">{initial.length} open signals</span>
-			<span class="sep">·</span>
-			<span id="pulse-clock">refresh in 5:00</span>
-		</div>
+		<span class="breath" aria-hidden="true"></span>
+		<span class="live-label">Live</span>
 	</div>
 
 	<ol class="lanes" id="pulse-lanes" aria-live="polite">
@@ -43,19 +34,12 @@ const repos = [...GITHUB_WATCH_REPOS];
 			))
 		}
 	</ol>
-
-	<ul class="watch" aria-label="Watched repositories">
-		{repos.map((repo) => <li>{repo}</li>)}
-	</ul>
 </section>
 
 <script define:vars={{ initial, repos }}>
 	const REFRESH_MS = 5 * 60 * 1000;
-	const BATCH = 4; // stay under unauthenticated GitHub rate limits
+	const BATCH = 4;
 	const lanes = document.getElementById('pulse-lanes');
-	const statusEl = document.getElementById('pulse-status');
-	const countEl = document.getElementById('pulse-count');
-	const clockEl = document.getElementById('pulse-clock');
 	const root = document.getElementById('gh-pulse');
 
 	/** @type {Map<string, any>} */
@@ -110,17 +94,9 @@ const repos = [...GITHUB_WATCH_REPOS];
 			if (title) title.textContent = items[index].title;
 		});
 
-		if (countEl) countEl.textContent = `${items.length} live PR signals`;
 		root?.classList.toggle('is-hot', animateIds.size > 0);
 		window.clearTimeout(breathTimer);
 		breathTimer = window.setTimeout(() => root?.classList.remove('is-hot'), 1800);
-	}
-
-	function tickClock() {
-		const left = Math.max(0, deadline - Date.now());
-		const m = Math.floor(left / 60000);
-		const s = Math.floor((left % 60000) / 1000);
-		if (clockEl) clockEl.textContent = `refresh in ${m}:${String(s).padStart(2, '0')}`;
 	}
 
 	async function fetchRepo(repo) {
@@ -157,9 +133,6 @@ const repos = [...GITHUB_WATCH_REPOS];
 		}
 		cursor = (cursor + BATCH) % repos.length;
 
-		if (statusEl) statusEl.textContent = `polling ${slice.map((r) => r.split('/')[1]).join(' · ')}`;
-
-		const before = new Set(ranked().map((item) => item.id));
 		const results = await Promise.all(slice.map((repo) => fetchRepo(repo).catch(() => null)));
 		const changed = new Set();
 
@@ -174,22 +147,13 @@ const repos = [...GITHUB_WATCH_REPOS];
 
 		render(changed);
 		deadline = Date.now() + REFRESH_MS;
-		if (statusEl) {
-			statusEl.textContent = changed.size
-				? `${changed.size} new movement${changed.size > 1 ? 's' : ''}`
-				: `watching ${repos.length} flagship repos`;
-		}
 	}
 
-	// Relative timestamps on SSR rows
 	document.querySelectorAll('#pulse-lanes .when[data-ts]').forEach((node) => {
 		node.textContent = relTime(node.getAttribute('data-ts'));
 	});
 
-	tickClock();
-	window.setInterval(tickClock, 1000);
 	window.setInterval(refreshBatch, REFRESH_MS);
-	// First client refresh shortly after load so the board starts breathing.
 	window.setTimeout(refreshBatch, 12_000);
 
 	document.addEventListener('visibilitychange', () => {
@@ -202,7 +166,7 @@ const repos = [...GITHUB_WATCH_REPOS];
 		position: relative;
 		display: grid;
 		gap: 1rem;
-		padding: 1.25rem 0 0.5rem;
+		padding: 0.25rem 0 0.5rem;
 		isolation: isolate;
 	}
 
@@ -210,11 +174,11 @@ const repos = [...GITHUB_WATCH_REPOS];
 		content: '';
 		position: absolute;
 		inset: -0.5rem -0.75rem auto;
-		height: 6.5rem;
+		height: 5.5rem;
 		border-radius: 0.35rem;
-		background: radial-gradient(ellipse at 20% 40%, color-mix(in srgb, var(--color-secondary) 14%, transparent), transparent 60%),
-			radial-gradient(ellipse at 80% 20%, color-mix(in srgb, var(--color-on-surface) 6%, transparent), transparent 55%);
-		opacity: 0.7;
+		background: radial-gradient(ellipse at 20% 40%, color-mix(in srgb, var(--color-secondary) 12%, transparent), transparent 60%),
+			radial-gradient(ellipse at 80% 20%, color-mix(in srgb, var(--color-on-surface) 5%, transparent), transparent 55%);
+		opacity: 0.65;
 		animation: aura 7s ease-in-out infinite;
 		pointer-events: none;
 		z-index: -1;
@@ -226,22 +190,13 @@ const repos = [...GITHUB_WATCH_REPOS];
 	}
 
 	.pulse-head {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		gap: 0.5rem 1.25rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
 		font-family: var(--font-mono);
 		font-size: 0.625rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--color-on-surface-variant);
-	}
-
-	.live-line,
-	.meta-line {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
 	}
 
 	.breath {
@@ -256,10 +211,6 @@ const repos = [...GITHUB_WATCH_REPOS];
 	.live-label {
 		color: var(--color-secondary);
 		font-weight: 600;
-	}
-
-	.sep {
-		color: var(--color-outline);
 	}
 
 	.lanes {
@@ -359,20 +310,6 @@ const repos = [...GITHUB_WATCH_REPOS];
 		color: var(--color-outline);
 	}
 
-	.watch {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.35rem 0.75rem;
-		list-style: none;
-		margin: 0.35rem 0 0;
-		padding: 0;
-		font-family: var(--font-mono);
-		font-size: 0.5625rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--color-outline);
-	}
-
 	@keyframes breath {
 		0% {
 			transform: scale(1);
@@ -392,11 +329,11 @@ const repos = [...GITHUB_WATCH_REPOS];
 		0%,
 		100% {
 			transform: scale(1) translateY(0);
-			opacity: 0.55;
+			opacity: 0.5;
 		}
 		50% {
 			transform: scale(1.04) translateY(2px);
-			opacity: 0.9;
+			opacity: 0.85;
 		}
 	}
 

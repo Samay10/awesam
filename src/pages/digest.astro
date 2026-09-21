@@ -1,21 +1,13 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DigestCard from '../components/DigestCard.astro';
-import { countBySource, digestSynthesis } from '../data/digest';
+import { countBySource } from '../data/digest';
 import { buildLiveDigestBands } from '../lib/buildDigest';
 import { site } from '../data/site';
 
 const digestBands = await buildLiveDigestBands();
 const counts = countBySource(digestBands);
 const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map((card) => [card.id, card])));
-const syncedLabel = new Date().toLocaleString('en-GB', {
-	timeZone: 'UTC',
-	day: '2-digit',
-	month: 'short',
-	hour: '2-digit',
-	minute: '2-digit',
-	hour12: false,
-});
 ---
 
 <BaseLayout
@@ -24,31 +16,19 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 >
 	<div class="canvas container-page">
 		<header class="mast">
-			<div class="issue">
-				<span class="vol">Live wire</span>
-				<span class="sep">·</span>
-				<span>Synced {syncedLabel} UTC</span>
-				<span class="sep">·</span>
-				<span class="on">Refreshes every 6 hours</span>
-			</div>
-
 			<div class="hero-grid">
 				<div class="hero-copy">
 					<h1>The Technical Digest</h1>
 					<p>
 						Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
-						Synthesized from live wires for practicing architects and principal builders.
 					</p>
 				</div>
-				<div class="partition">
-					<span class="partition-label">Active Source Partition</span>
-					<div class="filters" id="source-filters">
-						<button type="button" class="chip is-on" data-filter="all">All ({counts.all})</button>
-						<button type="button" class="chip" data-filter="hn">HN ({counts.hn})</button>
-						<button type="button" class="chip" data-filter="x">X / Lab ({counts.x})</button>
-						<button type="button" class="chip" data-filter="github">GitHub ({counts.github})</button>
-						<button type="button" class="chip" data-filter="papers">ArXiv ({counts.papers})</button>
-					</div>
+				<div class="filters" id="source-filters">
+					<button type="button" class="chip is-on" data-filter="all">All ({counts.all})</button>
+					<button type="button" class="chip" data-filter="hn">HN ({counts.hn})</button>
+					<button type="button" class="chip" data-filter="x">X ({counts.x})</button>
+					<button type="button" class="chip" data-filter="github">GitHub ({counts.github})</button>
+					<button type="button" class="chip" data-filter="papers">Papers ({counts.papers})</button>
 				</div>
 			</div>
 		</header>
@@ -64,26 +44,6 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 				</section>
 			))
 		}
-
-		<section class="synthesis">
-			<div class="syn-head">
-				<div>
-					<span class="band-label">Journal Synthesis</span>
-					<h3>The Macro Architecture Horizon</h3>
-				</div>
-				<span class="engine">HN beststories · rebuild every 6h</span>
-			</div>
-			<div class="syn-grid">
-				{
-					digestSynthesis.map((item) => (
-						<div>
-							<strong>{item.title}</strong>
-							<p>{item.body}</p>
-						</div>
-					))
-				}
-			</div>
-		</section>
 	</div>
 
 	<div class="modal" id="preview-modal" hidden>
@@ -91,21 +51,17 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 			<div class="dialog-head">
 				<div class="dialog-meta">
 					<span class="badge" id="modal-tag">HN</span>
-					<span id="modal-read">5 MIN READ</span>
+					<span id="modal-read"></span>
 				</div>
 				<button type="button" class="close" id="modal-close" aria-label="Close">×</button>
 			</div>
 			<div class="dialog-body">
-				<span class="eyebrow">Executive Abstract</span>
 				<h3 id="modal-title">Article Title</h3>
 				<p id="modal-content"></p>
 				<div class="dialog-foot">
-					<div>
-						<span class="eyebrow">Primary Source</span>
-						<span id="modal-source-id"></span>
-					</div>
+					<span id="modal-source-id"></span>
 					<a id="modal-link" href="#" target="_blank" rel="noreferrer">
-						Read Original Wire ↗
+						Read original ↗
 					</a>
 				</div>
 			</div>
@@ -181,33 +137,6 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 		gap: 1.25rem;
 	}
 
-	.issue {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		gap: 0.5rem 1rem;
-		padding-bottom: 0.65rem;
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--color-on-surface-variant);
-	}
-
-	.vol,
-	.band-label {
-		color: var(--color-secondary);
-		font-weight: 600;
-	}
-
-	.on {
-		color: var(--color-on-surface);
-	}
-
-	.sep {
-		color: var(--color-outline);
-	}
-
 	.hero-grid {
 		display: grid;
 		grid-template-columns: 1fr;
@@ -232,19 +161,6 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 		color: var(--color-on-surface-variant);
 	}
 
-	.partition {
-		display: grid;
-		gap: 0.4rem;
-	}
-
-	.partition-label {
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--color-outline);
-	}
-
 	.filters {
 		display: inline-flex;
 		flex-wrap: wrap;
@@ -252,6 +168,7 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 		padding: 0.25rem;
 		border-radius: 0.25rem;
 		background: var(--color-surface-container);
+		justify-self: start;
 	}
 
 	.chip {
@@ -283,59 +200,9 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 		gap: 1.25rem;
 	}
 
-	.grid.two {
-		grid-template-columns: 1fr;
-	}
-
+	.grid.two,
 	.grid.three {
 		grid-template-columns: 1fr;
-	}
-
-	.synthesis {
-		padding: 1.5rem;
-		border-radius: 0.25rem;
-		background: var(--color-surface-container-low);
-		display: grid;
-		gap: 1.25rem;
-	}
-
-	.syn-head {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		gap: 0.75rem;
-	}
-
-	.syn-head h3 {
-		margin: 0.2rem 0 0;
-		font-family: var(--font-display);
-		font-size: 1.25rem;
-		font-weight: 600;
-	}
-
-	.engine {
-		font-family: var(--font-mono);
-		font-size: 0.6875rem;
-		color: var(--color-outline);
-	}
-
-	.syn-grid {
-		display: grid;
-		gap: 1.25rem;
-	}
-
-	.syn-grid strong {
-		display: block;
-		margin-bottom: 0.35rem;
-		font-family: var(--font-display);
-		color: var(--color-on-surface);
-	}
-
-	.syn-grid p {
-		margin: 0;
-		color: var(--color-on-surface-variant);
-		line-height: 1.55;
-		font-size: 0.8125rem;
 	}
 
 	.modal {
@@ -406,14 +273,6 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 		gap: 0.75rem;
 	}
 
-	.eyebrow {
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--color-outline);
-	}
-
 	#modal-title {
 		margin: 0;
 		font-family: var(--font-display);
@@ -441,10 +300,9 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 	}
 
 	#modal-source-id {
-		display: block;
-		margin-top: 0.2rem;
 		font-family: var(--font-mono);
 		font-size: 0.75rem;
+		color: var(--color-on-surface-variant);
 	}
 
 	#modal-link {
@@ -463,12 +321,11 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 
 	@media (min-width: 900px) {
 		.hero-grid {
-			grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+			grid-template-columns: minmax(0, 8fr) auto;
 		}
 
-		.partition {
-			justify-items: end;
-			text-align: right;
+		.filters {
+			justify-self: end;
 		}
 
 		.grid.two {
@@ -476,10 +333,6 @@ const syncedLabel = new Date().toLocaleString('en-GB', {
 		}
 
 		.grid.three {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
-
-		.syn-grid {
 			grid-template-columns: repeat(3, minmax(0, 1fr));
 		}
 	}

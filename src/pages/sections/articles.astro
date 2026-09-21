@@ -21,9 +21,7 @@ const posts = (await getCollection('posts'))
 	<section class="detail container-page">
 		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
 		<header class="head">
-			<p class="eyebrow">Source desk · Articles</p>
-			<h1>Articles by me</h1>
-			<p class="lede">Notes from the press.</p>
+			<h1>Articles</h1>
 		</header>
 		<PostList posts={posts} />
 	</section>
@@ -32,23 +30,18 @@ const posts = (await getCollection('posts'))
 <style>
 	.detail {
 		padding: 2.5rem 0 4rem;
+		display: grid;
+		gap: 1.5rem;
 	}
 	.back {
 		display: inline-block;
-		margin-bottom: 1.25rem;
 		font-family: var(--font-mono);
 		font-size: 0.6875rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
-	.eyebrow {
-		margin: 0 0 0.4rem;
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--color-secondary);
-		font-weight: 600;
+	.head {
+		margin: 0;
 	}
 	h1 {
 		margin: 0;
@@ -56,15 +49,5 @@ const posts = (await getCollection('posts'))
 		font-size: clamp(2rem, 5vw, 2.75rem);
 		font-weight: 600;
 		letter-spacing: -0.02em;
-	}
-	.lede {
-		margin: 0.75rem 0 1.5rem;
-		color: var(--color-on-surface-variant);
-		max-width: 36rem;
-	}
-	.head {
-		padding-bottom: 1.25rem;
-		border-bottom: 1px solid var(--color-border);
-		margin-bottom: 0.5rem;
 	}
 </style>

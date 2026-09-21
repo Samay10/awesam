@@ -6,12 +6,11 @@ import { fetchGithubWatchPulls, fetchHottestGithubToday } from '../../lib/feeds'
 import { site } from '../../data/site';
 
 const base = import.meta.env.BASE_URL;
-// Hot search first so it wins scarce unauthenticated search quota; pulse uses /pulls.
 const hot = await fetchHottestGithubToday(6);
 const pulse = await fetchGithubWatchPulls();
 ---
 
-<BaseLayout title={`GitHub · ${site.name}`} description="Hottest repos and a live PR pulse across flagship projects.">
+<BaseLayout title={`GitHub · ${site.name}`} description="Rising repositories and recent pull requests.">
 	<section class="detail container-page">
 		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
 		<header class="head">
@@ -19,12 +18,12 @@ const pulse = await fetchGithubWatchPulls();
 		</header>
 
 		<div class="block">
-			<div class="block-label">Hottest today</div>
-			<FeedList items={hot} source="github" plan={[2, 2, 2]} empty="No rising repos in the window — check back on the next sync." />
+			<h2>Rising</h2>
+			<FeedList items={hot} source="github" plan={[2, 2, 2]} empty="Nothing rising right now." />
 		</div>
 
 		<div class="block">
-			<div class="block-label">Live PR pulse</div>
+			<h2>Activity</h2>
 			<GithubLivePulse initial={pulse} />
 		</div>
 	</section>
@@ -44,8 +43,7 @@ const pulse = await fetchGithubWatchPulls();
 		text-transform: uppercase;
 	}
 	.head {
-		display: grid;
-		gap: 0.55rem;
+		margin: 0;
 	}
 	h1 {
 		margin: 0;
@@ -58,11 +56,11 @@ const pulse = await fetchGithubWatchPulls();
 		display: grid;
 		gap: 0.85rem;
 	}
-	.block-label {
-		font-family: var(--font-mono);
-		font-size: 0.625rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--color-outline);
+	h2 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: 1.15rem;
+		font-weight: 600;
+		letter-spacing: -0.015em;
 	}
 </style>

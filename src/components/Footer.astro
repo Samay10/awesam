@@ -8,7 +8,7 @@ const base = import.meta.env.BASE_URL;
 <footer class="footer">
 	<div class="container-page inner">
 		<div class="left">
-			<p class="mark">{site.name} JOURNAL</p>
+			<p class="mark">{site.name}</p>
 			<p class="mission">
 				Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
 			</p>
@@ -21,7 +21,6 @@ const base = import.meta.env.BASE_URL;
 				<a href={site.github} target="_blank" rel="noreferrer">GitHub</a>
 				<a href={site.portfolio} target="_blank" rel="noreferrer">Portfolio</a>
 			</nav>
-			<p class="edition">Edition: live wire · refreshes every 6 hours</p>
 		</div>
 	</div>
 </footer>
@@ -55,8 +54,7 @@ const base = import.meta.env.BASE_URL;
 		line-height: 1.55;
 	}
 
-	.copy,
-	.edition {
+	.copy {
 		margin: 1rem 0 0;
 		font-family: var(--font-mono);
 		font-size: 0.6875rem;

@@ -170,7 +170,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> 
 			...init,
 			headers: {
 				Accept: 'application/json',
-				'User-Agent': 'AweSam/1.0 (https://samay10.github.io/awesam/)',
+				'User-Agent': 'AweSam/1.0 (https://samay10.github.io/awesam/; mailto:sam10ashar@gmail.com)',
 				...init?.headers,
 			},
 		});
@@ -413,13 +413,208 @@ export async function fetchGithubWatchPulls(): Promise<GithubPullSignal[]> {
 }
 
 export async function fetchPapers(limit = 12): Promise<FeedItem[]> {
+	const [arxiv, conferences, orgs] = await Promise.all([
+		fetchArxivPapers(Math.max(limit, 10)),
+		fetchOpenAlexConferencePapers(12),
+		fetchOpenAlexOrgPapers(12),
+	]);
+
+	const seen = new Set<string>();
+	const merged = [...conferences, ...orgs, ...arxiv]
+		.filter((item) => {
+			const key = item.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+			if (!key || seen.has(key)) return false;
+			if (PAPER_NOISE.test(`${item.title} ${item.summary ?? ''} ${item.meta}`)) return false;
+			seen.add(key);
+			return true;
+		})
+		.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+	return diversifyPapers(merged, limit);
+}
+
+function diversifyPapers(items: FeedItem[], limit: number): FeedItem[] {
+	const picks: FeedItem[] = [];
+	const take = (predicate: (item: FeedItem) => boolean, n: number) => {
+		for (const item of items) {
+			if (picks.length >= limit || n <= 0) return;
+			if (!predicate(item)) continue;
+			if (picks.some((row) => row.id === item.id)) continue;
+			picks.push(item);
+			n -= 1;
+		}
+	};
+
+	take((item) => /neurips|iclr|icml/i.test(item.source), 3);
+	take((item) => /arxiv/i.test(item.source), 4);
+	take((item) => /acl|emnlp|cvpr|aaai|lab|org/i.test(item.source), 3);
+	take(() => true, limit);
+	return picks.slice(0, limit);
+}
+
+const PAPER_VENUES = [
+	{ id: 'S4210191458', label: 'AAAI', weight: 8 },
+	{ id: 'S4306420609', label: 'NeurIPS', weight: 10 },
+	{ id: 'S4306419637', label: 'ICLR', weight: 10 },
+	{ id: 'S4306419644', label: 'ICML', weight: 10 },
+	{ id: 'S4306420508', label: 'ACL', weight: 8 },
+	{ id: 'S4306418267', label: 'EMNLP', weight: 8 },
+] as const;
+
+const PAPER_ORGS = [
+	'I4210161460', // OpenAI
+	'I4210090411', // Google DeepMind
+	'I1291425158', // Google
+	'I4210114444', // Meta US
+	'I2252078561', // Meta IL
+	'I97018004', // Stanford
+	'I63966007', // MIT
+	'I95457486', // Berkeley
+	'I4210164937', // Microsoft Research UK
+] as const;
+
+const PAPER_CONCEPTS = [
+	'C119857082', // Machine learning
+	'C154945302', // Artificial intelligence
+	'C108583219', // Deep learning
+].join('|');
+
+const PAPER_NOISE =
+	/\b(bmj|lancet|jama|consort|spirit|probast|stard-ai|drug development|diagnostic accuracy|cancer|cardiology|remote sensing|pansharpening|sleep staging)\b/i;
+
+const VENUE_HINTS: { re: RegExp; label: string; weight: number }[] = [
+	{ re: /\bneurips\b|\bnips\b/i, label: 'NeurIPS', weight: 10 },
+	{ re: /\biclr\b/i, label: 'ICLR', weight: 10 },
+	{ re: /\bicml\b/i, label: 'ICML', weight: 10 },
+	{ re: /\bcvpr\b/i, label: 'CVPR', weight: 9 },
+	{ re: /\biccv\b/i, label: 'ICCV', weight: 8 },
+	{ re: /\beccv\b/i, label: 'ECCV', weight: 8 },
+	{ re: /\baaa[iı]\b/i, label: 'AAAI', weight: 8 },
+	{ re: /\bemnlp\b/i, label: 'EMNLP', weight: 8 },
+	{ re: /\bacl\b/i, label: 'ACL', weight: 8 },
+	{ re: /\bkdd\b/i, label: 'KDD', weight: 7 },
+	{ re: /\bjmlr\b/i, label: 'JMLR', weight: 7 },
+];
+
+type OpenAlexWork = {
+	id: string;
+	display_name?: string;
+	publication_date?: string;
+	cited_by_count?: number;
+	doi?: string | null;
+	primary_location?: {
+		landing_page_url?: string | null;
+		pdf_url?: string | null;
+		source?: { display_name?: string | null } | null;
+	} | null;
+	authorships?: { author?: { display_name?: string | null } | null }[];
+	abstract_inverted_index?: Record<string, number[]> | null;
+};
+
+function openAlexMailto() {
+	return 'mailto=sam10ashar@gmail.com';
+}
+
+function reconstructAbstract(index?: Record<string, number[]> | null) {
+	if (!index) return '';
+	const slots: { word: string; pos: number }[] = [];
+	for (const [word, positions] of Object.entries(index)) {
+		for (const pos of positions) slots.push({ word, pos });
+	}
+	return slots
+		.sort((a, b) => a.pos - b.pos)
+		.map((slot) => slot.word)
+		.join(' ');
+}
+
+function venueFromText(...parts: (string | null | undefined)[]) {
+	const hay = parts.filter(Boolean).join(' · ');
+	for (const hint of VENUE_HINTS) {
+		if (hint.re.test(hay)) return hint;
+	}
+	return null;
+}
+
+function mapOpenAlexWork(work: OpenAlexWork, fallbackLabel: string, baseWeight: number): FeedItem | null {
+	const title = work.display_name?.trim();
+	if (!title) return null;
+
+	const sourceName = work.primary_location?.source?.display_name ?? '';
+	const abstract = reconstructAbstract(work.abstract_inverted_index);
+	const venue = venueFromText(title, sourceName, abstract, fallbackLabel);
+	const label = venue?.label ?? fallbackLabel;
+	const authors = (work.authorships ?? [])
+		.map((row) => row.author?.display_name)
+		.filter(Boolean)
+		.slice(0, 2)
+		.join(', ');
+	const date = work.publication_date ?? '';
+	const cites = work.cited_by_count ?? 0;
+	const href =
+		work.primary_location?.landing_page_url ||
+		work.primary_location?.pdf_url ||
+		(work.doi ? `https://doi.org/${work.doi.replace(/^https?:\/\/doi\.org\//, '')}` : '') ||
+		work.id;
+	const recencyBoost = date.startsWith('2026') ? 40 : date.startsWith('2025') ? 20 : 0;
+	const score = baseWeight * 12 + (venue?.weight ?? 0) * 10 + Math.min(cites, 400) / 4 + recencyBoost;
+
+	return {
+		id: `oa-${work.id.split('/').pop()}`,
+		title: clean(title, 140),
+		href,
+		source: label,
+		meta: [authors || label, date, cites ? `${cites} cites` : ''].filter(Boolean).join(' · '),
+		summary: abstract ? clean(abstract, 200) : undefined,
+		score,
+	};
+}
+
+async function fetchOpenAlexWorks(filter: string, perPage: number): Promise<OpenAlexWork[]> {
+	const url =
+		`https://api.openalex.org/works?filter=${encodeURIComponent(filter)}` +
+		`&sort=cited_by_count:desc&per_page=${perPage}&select=id,display_name,publication_date,cited_by_count,doi,primary_location,authorships,abstract_inverted_index` +
+		`&${openAlexMailto()}`;
+	const payload = await fetchJson<{ results?: OpenAlexWork[] }>(url);
+	return payload?.results ?? [];
+}
+
+async function fetchOpenAlexConferencePapers(limit: number): Promise<FeedItem[]> {
+	const sourceFilter = PAPER_VENUES.map((venue) => venue.id).join('|');
+	const works = await fetchOpenAlexWorks(
+		`locations.source.id:${sourceFilter},from_publication_date:${isoDate(400)},concepts.id:${PAPER_CONCEPTS}`,
+		Math.min(limit * 2, 25),
+	);
+
+	return works
+		.map((work) => {
+			const sourceName = work.primary_location?.source?.display_name ?? '';
+			const matched = PAPER_VENUES.find((venue) => sourceName.toLowerCase().includes(venue.label.toLowerCase()));
+			const fallback = matched?.label ?? venueFromText(sourceName)?.label ?? 'Conference';
+			const weight = matched?.weight ?? venueFromText(sourceName)?.weight ?? 6;
+			return mapOpenAlexWork(work, fallback, weight);
+		})
+		.filter((item): item is FeedItem => Boolean(item));
+}
+
+async function fetchOpenAlexOrgPapers(limit: number): Promise<FeedItem[]> {
+	const works = await fetchOpenAlexWorks(
+		`institutions.id:${PAPER_ORGS.join('|')},concepts.id:${PAPER_CONCEPTS},from_publication_date:${isoDate(200)},type:article|preprint`,
+		Math.min(limit * 2, 25),
+	);
+
+	return works
+		.map((work) => mapOpenAlexWork(work, 'Lab / Org', 7))
+		.filter((item): item is FeedItem => Boolean(item));
+}
+
+async function fetchArxivPapers(limit: number): Promise<FeedItem[]> {
 	const xml = await fetchText(
-		`https://export.arxiv.org/api/query?search_query=cat:cs.DC+OR+cat:cs.LG+OR+cat:cs.AI+OR+cat:cs.CL&sortBy=submittedDate&sortOrder=descending&max_results=${limit}`,
+		`https://export.arxiv.org/api/query?search_query=cat:cs.LG+OR+cat:cs.AI+OR+cat:cs.CL+OR+cat:cs.CV+OR+cat:cs.DC&sortBy=submittedDate&sortOrder=descending&max_results=${Math.min(limit * 2, 30)}`,
 	);
 	if (!xml) return [];
 
 	return parseAtomEntries(xml)
-		.slice(0, limit)
+		.slice(0, limit * 2)
 		.map((entry, index) => {
 			const title = xmlTag(entry, 'title');
 			const summary = xmlTag(entry, 'summary');
@@ -432,16 +627,20 @@ export async function fetchPapers(limit = 12): Promise<FeedItem[]> {
 				.slice(0, 2)
 				.join(', ');
 			const date = published ? published.slice(0, 10) : '';
+			const venue = venueFromText(title, summary);
+			const score = 35 + (venue?.weight ?? 0) * 8 + (date.startsWith(isoDate(0).slice(0, 7)) ? 15 : 0);
 
 			return {
-				id: `paper-${href || index}`,
+				id: `arxiv-${href || index}`,
 				title: clean(title, 140),
 				href,
-				source: 'arXiv',
+				source: venue ? `arXiv · ${venue.label}` : 'arXiv',
 				meta: [authors, date].filter(Boolean).join(' · '),
 				summary: summary ? clean(summary, 200) : undefined,
-			};
-		});
+				score,
+			} satisfies FeedItem;
+		})
+		.filter((item) => item.title && !PAPER_NOISE.test(`${item.title} ${item.summary ?? ''}`));
 }
 
 function parseFeedNodes(xml: string) {

@@ -8,13 +8,16 @@ const base = import.meta.env.BASE_URL;
 const items = await fetchPapers(10);
 ---
 
-<BaseLayout title={`Papers · ${site.name}`} description="Latest arXiv papers.">
+<BaseLayout
+	title={`Papers · ${site.name}`}
+	description="Top AI and systems papers from arXiv and major venues — NeurIPS, ICLR, ICML, and leading labs."
+>
 	<section class="detail container-page">
 		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
 		<header class="head">
 			<h1>Papers</h1>
 		</header>
-		<FeedList items={items} source="papers" />
+		<FeedList items={items} source="papers" plan={[2, 2, 3, 3]} />
 	</section>
 </BaseLayout>
 

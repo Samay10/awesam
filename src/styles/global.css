@@ -32,6 +32,25 @@
 	--color-tag-papers: #8b2500;
 	--color-tag-articles: #a73914;
 	--color-nav: rgba(252, 249, 242, 0.88);
+
+	/* Botanical frame — light */
+	--flora-opacity: 0.88;
+	--flora-bark-1: #2b1e17;
+	--flora-bark-2: #422f24;
+	--flora-bark-3: #6b4c38;
+	--flora-petal-1: #fff0ee;
+	--flora-petal-2: #f8c3b8;
+	--flora-petal-3: #e37e6d;
+	--flora-petal-4: #b84323;
+	--flora-petal-deep: #6a1a00;
+	--flora-secondary: #a73914;
+	--flora-leaf-1: #7d9179;
+	--flora-leaf-2: #8b9d85;
+	--flora-leaf-stroke: #4d604b;
+	--flora-accent: #d96b5a;
+	--flora-pollen: #dda336;
+	--flora-line: #cbb9a8;
+	--flora-line-deep: #8b7e72;
 }
 
 html[data-theme='dark'] {
@@ -54,6 +73,25 @@ html[data-theme='dark'] {
 	--color-tag-papers: #ffb59f;
 	--color-tag-articles: #ff784f;
 	--color-nav: rgba(13, 13, 13, 0.9);
+
+	/* Botanical frame — dark (warmer, softer so flowers read on near-black) */
+	--flora-opacity: 0.52;
+	--flora-bark-1: #d2b48c;
+	--flora-bark-2: #b8956e;
+	--flora-bark-3: #8f6d4e;
+	--flora-petal-1: #5a3030;
+	--flora-petal-2: #a85a4c;
+	--flora-petal-3: #e8957a;
+	--flora-petal-4: #ffb59f;
+	--flora-petal-deep: #ff784f;
+	--flora-secondary: #ff784f;
+	--flora-leaf-1: #7d9179;
+	--flora-leaf-2: #a3b59e;
+	--flora-leaf-stroke: #9aaf96;
+	--flora-accent: #e8957a;
+	--flora-pollen: #e6c07b;
+	--flora-line: #6b5f52;
+	--flora-line-deep: #a09080;
 }
 
 @layer base {
