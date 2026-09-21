@@ -1,210 +1,543 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import FeedList from '../components/FeedList.astro';
-import SectionLogo from '../components/SectionLogo.astro';
-import { loadDigest } from '../lib/feeds';
+import DigestCard from '../components/DigestCard.astro';
+import { countBySource, digestBands, digestSynthesis } from '../data/digest';
 import { site } from '../data/site';
 
-const base = import.meta.env.BASE_URL;
-const today = new Date().toLocaleDateString('en-US', {
-	weekday: 'long',
-	month: 'long',
-	day: 'numeric',
-	year: 'numeric',
-});
-
-const myPosts = (await getCollection('posts'))
-	.filter((post) => !post.data.draft)
-	.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
-	.slice(0, 2);
-
-const digest = await loadDigest(3);
-
-const lanes = [
-	{
-		id: 'articles',
-		title: 'From the press',
-		href: `${base}sections/articles/`,
-		logo: 'articles' as const,
-		items: myPosts.map((post) => ({
-			id: post.id,
-			title: post.data.title,
-			href: `${base}posts/${post.id}/`,
-			source: 'AweSam',
-			meta: post.data.pubDate.toLocaleDateString('en-US', {
-				month: 'short',
-				day: 'numeric',
-				year: 'numeric',
-			}),
-			summary: post.data.description,
-		})),
-	},
-	{
-		id: 'hn',
-		title: 'Hacker News',
-		href: `${base}sections/hn/`,
-		logo: 'hn' as const,
-		items: digest.hn,
-	},
-	{
-		id: 'x',
-		title: 'X',
-		href: `${base}sections/x/`,
-		logo: 'x' as const,
-		items: digest.x,
-	},
-	{
-		id: 'github',
-		title: 'GitHub',
-		href: `${base}sections/github/`,
-		logo: 'github' as const,
-		items: digest.github,
-	},
-	{
-		id: 'papers',
-		title: 'Papers',
-		href: `${base}sections/papers/`,
-		logo: 'papers' as const,
-		items: digest.papers,
-	},
-];
+const counts = countBySource(digestBands);
+const catalog = Object.fromEntries(digestBands.flatMap((band) => band.cards.map((card) => [card.id, card])));
 ---
 
 <BaseLayout
-	title={`Today’s Digest · ${site.name}`}
-	description="A short daily mix from my articles, Hacker News, X, GitHub, and papers."
+	title={`${site.name} — The Technical Digest`}
+	description="Notes on systems architecture, mathematical precision, foundational AI research, and programming craft."
 >
-	<section class="digest">
-		<div class="container-page">
-			<header class="head reveal">
-				<p class="eyebrow">Edition</p>
-				<h1>Today’s Digest</h1>
-				<p class="lede">{today} — a short pass across every desk.</p>
-			</header>
+	<div class="canvas container-page">
+		<header class="mast">
+			<div class="issue">
+				<div class="left">
+					<span class="vol">Volume IV</span>
+					<span class="sep">·</span>
+					<span>Issue 298</span>
+					<span class="sep">·</span>
+					<span class="on">Curated Technical Edition</span>
+				</div>
+				<div class="right">
+					<span class="live"><span class="pulse"></span>{counts.all} Synopses Indexed</span>
+					<span class="sep hide-sm">·</span>
+					<span class="hide-sm">Matrix: 2·2·3·3 Rhythmic Plan</span>
+				</div>
+			</div>
 
-			<nav class="toc reveal" aria-label="Digest sections">
+			<div class="hero-grid">
+				<div class="hero-copy">
+					<h1>The Technical Digest</h1>
+					<p>
+						Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
+						Synthesized daily for practicing architects and principal builders.
+					</p>
+				</div>
+				<div class="partition">
+					<span class="partition-label">Active Source Partition</span>
+					<div class="filters" id="source-filters">
+						<button type="button" class="chip is-on" data-filter="all">All ({counts.all})</button>
+						<button type="button" class="chip" data-filter="hn">HN ({counts.hn})</button>
+						<button type="button" class="chip" data-filter="x">X / Lab ({counts.x})</button>
+						<button type="button" class="chip" data-filter="github">GitHub ({counts.github})</button>
+						<button type="button" class="chip" data-filter="papers">ArXiv ({counts.papers})</button>
+					</div>
+				</div>
+			</div>
+		</header>
+
+		{
+			digestBands.map((band) => (
+				<section class="band" data-band={band.id}>
+					<div class="band-head">
+						<div class="band-title">
+							<span class="band-label">{band.label}</span>
+							<span class="slash">/</span>
+							<h2>{band.title}</h2>
+						</div>
+						<span class="aside">{band.aside}</span>
+					</div>
+					<div class:list={['grid', band.cards.length === 3 ? 'three' : 'two']}>
+						{band.cards.map((card) => (
+							<DigestCard card={card} />
+						))}
+					</div>
+				</section>
+			))
+		}
+
+		<section class="synthesis">
+			<div class="syn-head">
+				<div>
+					<span class="band-label">Journal Synthesis</span>
+					<h3>The Macro Architecture Horizon</h3>
+				</div>
+				<span class="engine">Synthesis Engine stub · Live APIs next</span>
+			</div>
+			<div class="syn-grid">
 				{
-					lanes.map((lane) => (
-						<a href={`#${lane.id}`}>{lane.title}</a>
+					digestSynthesis.map((item) => (
+						<div>
+							<strong>{item.title}</strong>
+							<p>{item.body}</p>
+						</div>
 					))
 				}
-			</nav>
+			</div>
+		</section>
+	</div>
 
-			{
-				lanes.map((lane, index) => (
-					<section class="lane reveal" id={lane.id} style={`--d: ${index * 60}ms`}>
-						<div class="lane-head">
-							<div class="lane-title">
-								<SectionLogo name={lane.logo} />
-								<h2>{lane.title}</h2>
-							</div>
-							<a class="ink-link more" href={lane.href}>
-								Open desk
-							</a>
-						</div>
-						<FeedList items={lane.items} external={lane.id !== 'articles'} />
-					</section>
-				))
-			}
+	<div class="modal" id="preview-modal" hidden>
+		<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+			<div class="dialog-head">
+				<div class="dialog-meta">
+					<span class="badge" id="modal-tag">HN</span>
+					<span id="modal-read">5 MIN READ</span>
+				</div>
+				<button type="button" class="close" id="modal-close" aria-label="Close">×</button>
+			</div>
+			<div class="dialog-body">
+				<span class="eyebrow">Executive Abstract</span>
+				<h3 id="modal-title">Article Title</h3>
+				<p id="modal-content"></p>
+				<div class="dialog-foot">
+					<div>
+						<span class="eyebrow">Primary Source</span>
+						<span id="modal-source-id"></span>
+					</div>
+					<a id="modal-link" href="#" target="_blank" rel="noreferrer">
+						Read Original Wire ↗
+					</a>
+				</div>
+			</div>
 		</div>
-	</section>
+	</div>
 </BaseLayout>
 
+<script define:vars={{ catalog }}>
+	const filters = document.getElementById('source-filters');
+	const cards = [...document.querySelectorAll('.card')];
+	const modal = document.getElementById('preview-modal');
+	const modalTag = document.getElementById('modal-tag');
+	const modalRead = document.getElementById('modal-read');
+	const modalTitle = document.getElementById('modal-title');
+	const modalContent = document.getElementById('modal-content');
+	const modalSource = document.getElementById('modal-source-id');
+	const modalLink = document.getElementById('modal-link');
+
+	filters?.addEventListener('click', (event) => {
+		const button = event.target.closest('[data-filter]');
+		if (!button) return;
+		const next = button.dataset.filter || 'all';
+		filters.querySelectorAll('.chip').forEach((chip) => chip.classList.toggle('is-on', chip === button));
+		cards.forEach((card) => {
+			card.hidden = next !== 'all' && card.dataset.source !== next;
+		});
+		document.querySelectorAll('.band').forEach((band) => {
+			const visible = [...band.querySelectorAll('.card')].some((card) => !card.hidden);
+			band.hidden = !visible;
+		});
+	});
+
+	function openPreview(id) {
+		const item = catalog[id];
+		if (!item || !modal) return;
+		modalTag.textContent = item.badge;
+		modalRead.textContent = item.meta;
+		modalTitle.textContent = item.title;
+		modalContent.textContent = item.abstract;
+		modalSource.textContent = item.stats.join(' · ');
+		modalLink.href = item.href;
+		modal.hidden = false;
+		document.body.style.overflow = 'hidden';
+	}
+
+	function closePreview() {
+		if (!modal) return;
+		modal.hidden = true;
+		document.body.style.overflow = '';
+	}
+
+	document.querySelectorAll('[data-preview]').forEach((node) => {
+		node.addEventListener('click', () => openPreview(node.dataset.preview));
+	});
+	document.getElementById('modal-close')?.addEventListener('click', closePreview);
+	modal?.addEventListener('click', (event) => {
+		if (event.target === modal) closePreview();
+	});
+	window.addEventListener('keydown', (event) => {
+		if (event.key === 'Escape') closePreview();
+	});
+</script>
+
 <style>
-	.digest {
-		padding: clamp(2.4rem, 7vw, 4rem) 0 clamp(4rem, 8vw, 6rem);
+	.canvas {
+		padding: 2.5rem 0 3.5rem;
+		display: grid;
+		gap: 2.5rem;
 	}
 
-	.head {
-		max-width: 42rem;
-		margin-bottom: 1.5rem;
+	.mast {
+		display: grid;
+		gap: 1.25rem;
 	}
 
-	.eyebrow {
-		margin: 0 0 0.7rem;
+	.issue {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: 0.5rem 1rem;
+		padding-bottom: 0.65rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		letter-spacing: 0.14em;
+		font-size: 0.625rem;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--color-muted);
+		color: var(--color-on-surface-variant);
+	}
+
+	.vol,
+	.band-label {
+		color: var(--color-secondary);
+		font-weight: 600;
+	}
+
+	.on {
+		color: var(--color-on-surface);
+	}
+
+	.sep {
+		color: var(--color-outline);
+	}
+
+	.live {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.pulse {
+		width: 0.35rem;
+		height: 0.35rem;
+		border-radius: 999px;
+		background: var(--color-secondary);
+	}
+
+	.hero-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1.5rem;
+		align-items: end;
 	}
 
 	h1 {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: clamp(3rem, 9vw, 5.2rem);
-		font-weight: 650;
-		letter-spacing: -0.05em;
-		line-height: 0.92;
+		font-size: clamp(2rem, 5vw, 2.75rem);
+		font-weight: 600;
+		letter-spacing: -0.02em;
+		line-height: 1.15;
 	}
 
-	.lede {
-		margin: 1rem 0 0;
-		font-family: var(--font-display);
-		font-style: italic;
-		font-size: 1.15rem;
-		color: var(--color-muted);
+	.hero-copy p {
+		margin: 0.65rem 0 0;
+		max-width: 42rem;
+		font-size: 1rem;
+		line-height: 1.6;
+		color: var(--color-on-surface-variant);
 	}
 
-	.toc {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.55rem 1rem;
-		margin-bottom: 2rem;
-		padding-bottom: 1.25rem;
-		border-bottom: 1px solid var(--color-rule);
+	.partition {
+		display: grid;
+		gap: 0.4rem;
+	}
+
+	.partition-label {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: 0.625rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--color-outline);
+	}
+
+	.filters {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		padding: 0.25rem;
+		border-radius: 0.25rem;
+		background: var(--color-surface-container);
+	}
+
+	.chip {
+		padding: 0.3rem 0.65rem;
+		border: 0;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: var(--color-on-surface-variant);
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+		font-weight: 600;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
+		cursor: pointer;
 	}
 
-	.toc a {
-		color: var(--color-muted);
+	.chip.is-on {
+		background: var(--color-primary);
+		color: var(--color-on-primary);
 	}
 
-	.toc a:hover {
-		color: var(--color-accent);
+	.band {
+		display: grid;
+		gap: 0.875rem;
 	}
 
-	.lane {
-		padding: 1.75rem 0 2rem;
-		border-bottom: 1px solid var(--color-rule);
-		transition-delay: var(--d, 0ms);
+	.band-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem 1rem;
 	}
 
-	.lane-head {
+	.band-title {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+	}
+
+	.slash {
+		color: var(--color-outline);
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+	}
+
+	.band-title h2 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: 1.05rem;
+		font-weight: 600;
+	}
+
+	.aside {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--color-on-surface-variant);
+	}
+
+	.grid {
+		display: grid;
+		gap: 1.25rem;
+	}
+
+	.grid.two {
+		grid-template-columns: 1fr;
+	}
+
+	.grid.three {
+		grid-template-columns: 1fr;
+	}
+
+	.synthesis {
+		padding: 1.5rem;
+		border-radius: 0.25rem;
+		background: var(--color-surface-container-low);
+		display: grid;
+		gap: 1.25rem;
+	}
+
+	.syn-head {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.syn-head h3 {
+		margin: 0.2rem 0 0;
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		font-weight: 600;
+	}
+
+	.engine {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--color-outline);
+	}
+
+	.syn-grid {
+		display: grid;
+		gap: 1.25rem;
+	}
+
+	.syn-grid strong {
+		display: block;
+		margin-bottom: 0.35rem;
+		font-family: var(--font-display);
+		color: var(--color-on-surface);
+	}
+
+	.syn-grid p {
+		margin: 0;
+		color: var(--color-on-surface-variant);
+		line-height: 1.55;
+		font-size: 0.8125rem;
+	}
+
+	.modal {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		display: grid;
+		place-items: center;
+		padding: 2rem;
+		background: rgba(0, 0, 0, 0.45);
+	}
+
+	.modal[hidden] {
+		display: none;
+	}
+
+	.dialog {
+		width: min(720px, 100%);
+		max-height: 82vh;
+		overflow: auto;
+		background: var(--color-surface-light);
+		border: 1px solid var(--color-border);
+		border-radius: 0.25rem;
+	}
+
+	.dialog-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 1rem;
-		margin-bottom: 1rem;
+		padding: 0.9rem 1.25rem;
+		background: var(--color-surface-container-low);
+		border-bottom: 1px solid var(--color-border);
 	}
 
-	.lane-title {
+	.dialog-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.85rem;
-	}
-
-	.lane-title :global(.logo) {
-		width: 2.35rem;
-		height: 2.35rem;
-	}
-
-	h2 {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: clamp(1.45rem, 3vw, 1.85rem);
-		letter-spacing: -0.03em;
-	}
-
-	.more {
+		gap: 0.65rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: 0.625rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		white-space: nowrap;
+		color: var(--color-on-surface-variant);
+	}
+
+	.dialog-meta .badge {
+		padding: 0.15rem 0.45rem;
+		border-radius: 999px;
+		background: var(--color-surface-container);
+		color: var(--color-secondary);
+		font-weight: 600;
+	}
+
+	.close {
+		width: 1.75rem;
+		height: 1.75rem;
+		border: 0;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: var(--color-on-surface-variant);
+		font-size: 1.25rem;
+		cursor: pointer;
+	}
+
+	.dialog-body {
+		padding: 1.35rem;
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.eyebrow {
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--color-outline);
+	}
+
+	#modal-title {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: 1.5rem;
+		font-weight: 600;
+		letter-spacing: -0.02em;
+		line-height: 1.2;
+	}
+
+	#modal-content {
+		margin: 0;
+		color: var(--color-on-surface-variant);
+		line-height: 1.6;
+	}
+
+	.dialog-foot {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.9rem 1rem;
+		border-radius: 0.25rem;
+		background: var(--color-surface-container-low);
+	}
+
+	#modal-source-id {
+		display: block;
+		margin-top: 0.2rem;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+	}
+
+	#modal-link {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.45rem 0.8rem;
+		border-radius: 0.25rem;
+		background: var(--color-primary);
+		color: var(--color-on-primary);
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+
+	@media (min-width: 900px) {
+		.hero-grid {
+			grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+		}
+
+		.partition {
+			justify-items: end;
+			text-align: right;
+		}
+
+		.grid.two {
+			grid-template-columns: 1fr 1fr;
+		}
+
+		.grid.three {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+
+		.syn-grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 768px) {
+		.hide-sm {
+			display: none;
+		}
 	}
 </style>

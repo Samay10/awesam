@@ -44,7 +44,7 @@ const { items, empty = 'Nothing on the desk yet — check back soon.', external 
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-top: 1px solid var(--color-rule);
+		border-top: 1px solid var(--color-border);
 	}
 
 	.mark {
@@ -53,18 +53,18 @@ const { items, empty = 'Nothing on the desk yet — check back soon.', external 
 		gap: 0.85rem;
 		align-items: start;
 		padding: 1.05rem 0.15rem;
-		border-bottom: 1px solid var(--color-rule);
+		border-bottom: 1px solid var(--color-border);
 	}
 
 	.mark:hover {
-		background: color-mix(in srgb, var(--color-paper-deep) 70%, transparent);
+		background: var(--color-surface-container-low);
 	}
 
 	.idx {
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		letter-spacing: 0.06em;
-		color: var(--color-muted);
+		color: var(--color-outline);
 		padding-top: 0.35rem;
 	}
 
@@ -79,43 +79,40 @@ const { items, empty = 'Nothing on the desk yet — check back soon.', external 
 		font-size: clamp(1.05rem, 2vw, 1.35rem);
 		letter-spacing: -0.02em;
 		line-height: 1.25;
+		font-weight: 600;
 	}
 
 	.summary,
 	.meta {
-		font-size: 0.92rem;
+		font-size: 0.875rem;
 		line-height: 1.5;
-		color: var(--color-muted);
+		color: var(--color-on-surface-variant);
 	}
 
 	.meta {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: 0.6875rem;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 	}
 
 	.arrow {
-		color: var(--color-muted);
+		color: var(--color-outline);
 		padding-top: 0.3rem;
-		transition:
-			transform 180ms ease,
-			color 180ms ease;
 	}
 
 	.mark:hover .arrow {
-		color: var(--color-accent);
-		transform: translate(2px, -2px);
+		color: var(--color-secondary);
 	}
 
 	.empty {
 		margin: 0;
 		padding: 1.2rem 0;
-		border-top: 1px solid var(--color-rule);
-		border-bottom: 1px solid var(--color-rule);
+		border-top: 1px solid var(--color-border);
+		border-bottom: 1px solid var(--color-border);
 		font-family: var(--font-display);
 		font-style: italic;
-		color: var(--color-muted);
+		color: var(--color-on-surface-variant);
 	}
 
 	.reveal {

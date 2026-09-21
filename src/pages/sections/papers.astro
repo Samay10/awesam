@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import FeedList from '../../components/FeedList.astro';
-import SectionLogo from '../../components/SectionLogo.astro';
 import { fetchPapers } from '../../lib/feeds';
 import { site } from '../../data/site';
 
@@ -9,74 +8,54 @@ const base = import.meta.env.BASE_URL;
 const items = await fetchPapers(16);
 ---
 
-<BaseLayout title={`Papers · ${site.name}`} description="Latest arXiv papers in systems and AI.">
-	<section class="detail">
-		<div class="container-page">
-			<a class="back ink-link reveal" href={`${base}sections/`}>← Sections</a>
-			<header class="head reveal">
-				<div class="brand-row">
-					<SectionLogo name="papers" />
-					<div>
-						<p class="eyebrow">Desk 05</p>
-						<h1>Papers</h1>
-					</div>
-				</div>
-				<p class="lede">Fresh arXiv work in distributed systems, learning, and language.</p>
-			</header>
-			<FeedList items={items} />
-		</div>
+<BaseLayout title={`Papers · ${site.name}`} description="Latest arXiv papers.">
+	<section class="detail container-page">
+		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
+		<header class="head">
+			<p class="eyebrow">Source desk · Papers</p>
+			<h1>Papers</h1>
+			<p class="lede">arXiv press. Live API wiring comes next.</p>
+		</header>
+		<FeedList items={items} />
 	</section>
 </BaseLayout>
 
 <style>
 	.detail {
-		padding: clamp(2rem, 6vw, 3.5rem) 0 clamp(4rem, 8vw, 6rem);
+		padding: 2.5rem 0 4rem;
 	}
-
 	.back {
 		display: inline-block;
-		margin-bottom: 1.5rem;
+		margin-bottom: 1.25rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: 0.6875rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.eyebrow {
+		margin: 0 0 0.4rem;
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
+		color: var(--color-secondary);
+		font-weight: 600;
 	}
-
-	.head {
-		margin-bottom: 1.75rem;
-		padding-bottom: 1.4rem;
-		border-bottom: 1px solid var(--color-rule);
-	}
-
-	.brand-row {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.eyebrow {
-		margin: 0 0 0.35rem;
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--color-muted);
-	}
-
 	h1 {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: clamp(2.2rem, 6vw, 3.4rem);
-		letter-spacing: -0.04em;
-		line-height: 1;
+		font-size: clamp(2rem, 5vw, 2.75rem);
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
-
 	.lede {
-		margin: 1rem 0 0;
+		margin: 0.75rem 0 1.5rem;
+		color: var(--color-on-surface-variant);
 		max-width: 36rem;
-		font-family: var(--font-display);
-		font-style: italic;
-		color: var(--color-muted);
-		font-size: 1.1rem;
+	}
+	.head {
+		padding-bottom: 1.25rem;
+		border-bottom: 1px solid var(--color-border);
+		margin-bottom: 0.5rem;
 	}
 </style>

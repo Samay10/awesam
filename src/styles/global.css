@@ -1,39 +1,59 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/fraunces/wght.css';
-@import '@fontsource-variable/fraunces/wght-italic.css';
-@import '@fontsource-variable/source-serif-4/wght.css';
-@import '@fontsource-variable/source-serif-4/wght-italic.css';
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource-variable/newsreader/wght.css';
+@import '@fontsource-variable/newsreader/wght-italic.css';
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 @theme {
-	--font-display: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
-	--font-body: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
-	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+	--font-display: 'Newsreader Variable', 'Newsreader', Georgia, serif;
+	--font-body: 'Geist Variable', 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-	--color-ink: #12100e;
-	--color-paper: #f3eee6;
-	--color-paper-deep: #ebe4d8;
-	--color-muted: #6b645a;
-	--color-rule: rgba(18, 16, 14, 0.14);
-	--color-accent: #9b1d2e;
-	--color-accent-hover: #7a1523;
-	--color-nav: rgba(243, 238, 230, 0.82);
-	--color-spotlight: rgba(155, 29, 46, 0.12);
+	--color-surface: #fcf9f2;
+	--color-surface-light: #ffffff;
+	--color-surface-container: #f1eee7;
+	--color-surface-container-low: #f6f3ec;
+	--color-surface-container-high: #ebe8e1;
+	--color-on-surface: #1c1c18;
+	--color-on-surface-variant: #444748;
+	--color-outline: #747878;
+	--color-border: #e5e5e5;
+	--color-primary: #000000;
+	--color-on-primary: #ffffff;
+	--color-secondary: #a73914;
+	--color-accent: #8b2500;
+	--color-tag-hn: #ff6600;
+	--color-tag-x: #1da1f2;
+	--color-tag-github: #24292e;
+	--color-tag-papers: #8b2500;
+	--color-tag-articles: #a73914;
+	--color-nav: rgba(252, 249, 242, 0.88);
 }
 
 html[data-theme='dark'] {
-	--color-ink: #f3eee6;
-	--color-paper: #12100e;
-	--color-paper-deep: #1a1714;
-	--color-muted: #a39a8c;
-	--color-rule: rgba(243, 238, 230, 0.14);
-	--color-accent: #e85a6b;
-	--color-accent-hover: #ff7a88;
-	--color-nav: rgba(18, 16, 14, 0.86);
-	--color-spotlight: rgba(232, 90, 107, 0.14);
+	--color-surface: #0d0d0d;
+	--color-surface-light: #161616;
+	--color-surface-container: #1a1a1a;
+	--color-surface-container-low: #141414;
+	--color-surface-container-high: #1f1f1f;
+	--color-on-surface: #f4f1ea;
+	--color-on-surface-variant: #a1a1aa;
+	--color-outline: #71717a;
+	--color-border: #262626;
+	--color-primary: #f4f1ea;
+	--color-on-primary: #0d0d0d;
+	--color-secondary: #ff784f;
+	--color-accent: #ffb59f;
+	--color-tag-hn: #ff8533;
+	--color-tag-x: #54aeff;
+	--color-tag-github: #c8c6c5;
+	--color-tag-papers: #ffb59f;
+	--color-tag-articles: #ff784f;
+	--color-nav: rgba(13, 13, 13, 0.9);
 }
 
 @layer base {
@@ -45,15 +65,16 @@ html[data-theme='dark'] {
 
 	body {
 		font-family: var(--font-body);
-		background: var(--color-paper);
-		color: var(--color-ink);
+		background: var(--color-surface);
+		color: var(--color-on-surface);
 		min-height: 100vh;
-		letter-spacing: -0.01em;
+		font-size: 14px;
+		line-height: 22px;
 		overflow-x: clip;
 	}
 
 	::selection {
-		background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+		background: color-mix(in srgb, var(--color-secondary) 28%, transparent);
 	}
 
 	a {
@@ -62,8 +83,8 @@ html[data-theme='dark'] {
 	}
 
 	:focus-visible {
-		outline: 2px solid var(--color-accent);
-		outline-offset: 3px;
+		outline: 1px solid var(--color-accent);
+		outline-offset: 2px;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
@@ -80,28 +101,22 @@ html[data-theme='dark'] {
 
 @utility container-page {
 	width: 100%;
-	max-width: 68rem;
+	max-width: 1280px;
 	margin-inline: auto;
-	padding-inline: max(clamp(1.25rem, 4vw, 3.25rem), env(safe-area-inset-left))
-		max(clamp(1.25rem, 4vw, 3.25rem), env(safe-area-inset-right));
-}
-
-@utility measure {
-	max-width: 65ch;
+	padding-inline: max(2rem, env(safe-area-inset-left)) max(2rem, env(safe-area-inset-right));
 }
 
 @utility ink-link {
-	color: var(--color-accent);
-	background-image: linear-gradient(currentColor, currentColor);
-	background-position: 0 100%;
-	background-repeat: no-repeat;
-	background-size: 0% 1.5px;
-	transition:
-		background-size 280ms ease,
-		color 160ms ease;
+	color: var(--color-on-surface);
+	transition: color 150ms linear;
 
 	&:hover {
-		background-size: 100% 1.5px;
-		color: var(--color-accent-hover);
+		color: var(--color-secondary);
+	}
+}
+
+@media (max-width: 768px) {
+	.container-page {
+		padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
 	}
 }

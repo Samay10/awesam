@@ -1,6 +1,6 @@
 export const site = {
 	name: 'AweSam',
-	tagline: 'Notes on systems, craft, and whatever I’m learning along the way.',
+	tagline: 'Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.',
 	author: 'Samay Ashar',
 	email: 'sam10ashar@gmail.com',
 	portfolio: 'https://samay10.github.io/samay-portfolio/',

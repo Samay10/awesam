@@ -47,7 +47,7 @@ function formatDate(date: Date) {
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-top: 1px solid var(--color-rule);
+		border-top: 1px solid var(--color-border);
 	}
 
 	.row {
@@ -56,61 +56,48 @@ function formatDate(date: Date) {
 		gap: 1rem;
 		align-items: baseline;
 		padding: 1.15rem 0.15rem;
-		border-bottom: 1px solid var(--color-rule);
-		transition: background 160ms ease;
+		border-bottom: 1px solid var(--color-border);
+		transition: background 150ms linear;
 	}
 
 	.row:hover {
-		background: color-mix(in srgb, var(--color-paper-deep) 70%, transparent);
+		background: var(--color-surface-container-low);
 	}
 
 	time {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: 0.6875rem;
 		letter-spacing: 0.04em;
-		color: var(--color-muted);
+		color: var(--color-outline);
 		text-transform: uppercase;
 	}
 
 	.title {
 		font-family: var(--font-display);
 		font-size: clamp(1.15rem, 2.2vw, 1.45rem);
-		font-weight: 550;
+		font-weight: 600;
 		letter-spacing: -0.02em;
 		line-height: 1.25;
-		background-image: linear-gradient(currentColor, currentColor);
-		background-position: 0 100%;
-		background-repeat: no-repeat;
-		background-size: 0% 1.5px;
-		transition: background-size 280ms ease;
-	}
-
-	.row:hover .title {
-		background-size: 100% 1.5px;
 	}
 
 	.arrow {
 		font-size: 0.95rem;
-		color: var(--color-muted);
-		transition:
-			transform 180ms ease,
-			color 180ms ease;
+		color: var(--color-outline);
 	}
 
 	.row:hover .arrow {
-		color: var(--color-accent);
-		transform: translate(2px, -2px);
+		color: var(--color-secondary);
 	}
 
 	.empty {
 		margin: 0;
 		padding: 1.5rem 0;
-		border-top: 1px solid var(--color-rule);
-		border-bottom: 1px solid var(--color-rule);
+		border-top: 1px solid var(--color-border);
+		border-bottom: 1px solid var(--color-border);
 		font-family: var(--font-display);
 		font-style: italic;
 		font-size: 1.25rem;
-		color: var(--color-muted);
+		color: var(--color-on-surface-variant);
 	}
 
 	.reveal {
