@@ -58,7 +58,7 @@ GitHub Actions redeploys on every `main` push and on a **6-hour cron** (`0 0,6,1
 Cards do **not** paste the original post. On every refresh the build:
 
 1. Pulls the live wires
-2. Asks Groq **Llama 3.3 70B** (free tier; falls back to GPT-OSS / Qwen if needed) for an original lede + 2–3 minute read
+2. Asks Groq **Llama 3.3 70B** (free tier; falls back to GPT-OSS / Qwen if needed) for an original lede + **3–4 minute** author-style technical note (≥4 paragraphs + takeaway)
 3. Publishes an on-site page at `/reads/<id>/` with a link back to the original at the end
 
 GitHub **Hot Repos** go through this pipeline. The Big Guns PR boxes stay live-updating and are not rewritten.
