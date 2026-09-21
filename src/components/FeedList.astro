@@ -1,22 +1,22 @@
 ---
 import DigestCard from './DigestCard.astro';
 import type { DigestSource } from '../data/digest';
-import { cardsToBands, feedToCard, sizeForBand } from '../lib/buildDigest';
+import { DIGEST_PLAN, cardsToBands, feedToCard, sizeForBand, chunkByPlan } from '../lib/buildDigest';
 import type { FeedItem } from '../lib/feeds';
 
 interface Props {
 	items: FeedItem[];
 	source: DigestSource;
 	empty?: string;
+	plan?: readonly number[];
 }
 
-const { items, source, empty = 'Nothing here yet — check back soon.' } = Astro.props;
+const { items, source, empty = 'Nothing here yet — check back soon.', plan = DIGEST_PLAN } = Astro.props;
 
-const cards = items.map((item, index) => {
-	const bandIndex = index < 2 ? 0 : index < 4 ? 1 : index < 7 ? 2 : 3;
-	return feedToCard(item, source, sizeForBand(bandIndex));
-});
-const bands = cardsToBands(cards);
+const sized = chunkByPlan(items, plan).flatMap((bandItems, bandIndex) =>
+	bandItems.map((item) => feedToCard(item, source, sizeForBand(bandIndex))),
+);
+const bands = cardsToBands(sized, plan);
 ---
 
 {

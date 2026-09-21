@@ -1,20 +1,32 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import FeedList from '../../components/FeedList.astro';
-import { fetchGithubRepos } from '../../lib/feeds';
+import GithubLivePulse from '../../components/GithubLivePulse.astro';
+import { fetchGithubWatchPulls, fetchHottestGithubToday } from '../../lib/feeds';
 import { site } from '../../data/site';
 
 const base = import.meta.env.BASE_URL;
-const items = await fetchGithubRepos(10);
+// Hot search first so it wins scarce unauthenticated search quota; pulse uses /pulls.
+const hot = await fetchHottestGithubToday(6);
+const pulse = await fetchGithubWatchPulls();
 ---
 
-<BaseLayout title={`GitHub · ${site.name}`} description="Rising GitHub repositories.">
+<BaseLayout title={`GitHub · ${site.name}`} description="Hottest repos and a live PR pulse across flagship projects.">
 	<section class="detail container-page">
 		<a class="back ink-link" href={`${base}digest/`}>← Digest</a>
 		<header class="head">
 			<h1>GitHub</h1>
 		</header>
-		<FeedList items={items} source="github" />
+
+		<div class="block">
+			<div class="block-label">Hottest today</div>
+			<FeedList items={hot} source="github" plan={[2, 2, 2]} empty="No rising repos in the window — check back on the next sync." />
+		</div>
+
+		<div class="block">
+			<div class="block-label">Live PR pulse</div>
+			<GithubLivePulse initial={pulse} />
+		</div>
 	</section>
 </BaseLayout>
 
@@ -22,7 +34,7 @@ const items = await fetchGithubRepos(10);
 	.detail {
 		padding: 2.5rem 0 4rem;
 		display: grid;
-		gap: 1.5rem;
+		gap: 2rem;
 	}
 	.back {
 		display: inline-block;
@@ -32,7 +44,8 @@ const items = await fetchGithubRepos(10);
 		text-transform: uppercase;
 	}
 	.head {
-		margin: 0;
+		display: grid;
+		gap: 0.55rem;
 	}
 	h1 {
 		margin: 0;
@@ -40,5 +53,16 @@ const items = await fetchGithubRepos(10);
 		font-size: clamp(2rem, 5vw, 2.75rem);
 		font-weight: 600;
 		letter-spacing: -0.02em;
+	}
+	.block {
+		display: grid;
+		gap: 0.85rem;
+	}
+	.block-label {
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--color-outline);
 	}
 </style>

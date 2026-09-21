@@ -59,8 +59,8 @@ export function chunkByPlan<T>(items: T[], plan: readonly number[] = DIGEST_PLAN
 	return bands;
 }
 
-export function cardsToBands(cards: DigestCard[]): DigestBand[] {
-	return chunkByPlan(cards).map((bandCards, index) => ({
+export function cardsToBands(cards: DigestCard[], plan: readonly number[] = DIGEST_PLAN): DigestBand[] {
+	return chunkByPlan(cards, plan).map((bandCards, index) => ({
 		id: String(index + 1).padStart(2, '0'),
 		label: '',
 		title: '',

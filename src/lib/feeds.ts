@@ -274,14 +274,142 @@ export async function fetchGithubRepos(limit = 12): Promise<FeedItem[]> {
 		{ headers: { 'X-GitHub-Api-Version': '2022-11-28' } },
 	);
 
-	return (payload?.items ?? []).slice(0, limit).map((repo) => ({
+	return (payload?.items ?? []).slice(0, limit).map(mapGithubRepo);
+}
+
+/** Hottest rising repos in the last ~48h (star proxy for “of the day”). */
+export async function fetchHottestGithubToday(limit = 6): Promise<FeedItem[]> {
+	const since = isoDate(1);
+	const payload = await fetchJson<{ items?: GithubRepo[] }>(
+		`https://api.github.com/search/repositories?q=${encodeURIComponent(`created:>=${since} stars:>10`)}&sort=stars&order=desc&per_page=30`,
+		{ headers: { 'X-GitHub-Api-Version': '2022-11-28' } },
+	);
+
+	let items = rankGithubHot(payload?.items ?? [], limit);
+	if (items.length < limit) {
+		const fallback = await fetchJson<{ items?: GithubRepo[] }>(
+			`https://api.github.com/search/repositories?q=${encodeURIComponent(`created:>=${isoDate(5)} stars:>40`)}&sort=stars&order=desc&per_page=30`,
+			{ headers: { 'X-GitHub-Api-Version': '2022-11-28' } },
+		);
+		items = rankGithubHot(fallback?.items ?? [], limit);
+	}
+
+	return items;
+}
+
+function rankGithubHot(repos: GithubRepo[], limit: number): FeedItem[] {
+	const tech = [
+		'ai',
+		'llm',
+		'gpt',
+		'model',
+		'agent',
+		'rust',
+		'python',
+		'typescript',
+		'cuda',
+		'gpu',
+		'kernel',
+		'infra',
+		'system',
+		'compiler',
+		'database',
+		'distributed',
+		'openai',
+		'pytorch',
+		'inference',
+		'sdk',
+		'cli',
+		'devtool',
+		'framework',
+	];
+
+	return repos
+		.map(mapGithubRepo)
+		.map((item) => {
+			const hay = `${item.title} ${item.summary ?? ''} ${item.meta}`.toLowerCase();
+			const noise = /awesome-|curriculum|homework|course|minecraft|tutorial-only/.test(hay);
+			const hits = tech.filter((word) => hay.includes(word)).length;
+			return { item, noise, hits, score: (item.score ?? 0) + hits * 80 - (noise ? 10_000 : 0) };
+		})
+		.filter((row) => !row.noise)
+		.sort((a, b) => b.score - a.score || b.hits - a.hits)
+		.slice(0, limit)
+		.map((row) => row.item);
+}
+
+function mapGithubRepo(repo: GithubRepo): FeedItem {
+	return {
 		id: `gh-${repo.id}`,
 		title: repo.full_name,
 		href: repo.html_url,
 		source: 'GitHub',
 		meta: `${repo.stargazers_count.toLocaleString()} ★ · ${repo.language ?? 'polyglot'}`,
 		summary: repo.description ? clean(repo.description, 160) : undefined,
-	}));
+		score: repo.stargazers_count,
+	};
+}
+
+/** Flagship repos watched by the live PR pulse. */
+export const GITHUB_WATCH_REPOS = [
+	'openclaw/openclaw',
+	'microsoft/vscode',
+	'microsoft/TypeScript',
+	'facebook/react',
+	'pytorch/pytorch',
+	'kubernetes/kubernetes',
+	'vercel/next.js',
+	'rust-lang/rust',
+	'openai/openai-python',
+	'golang/go',
+] as const;
+
+export type GithubPullSignal = {
+	id: string;
+	repo: string;
+	number: number;
+	title: string;
+	href: string;
+	user: string;
+	updatedAt: string;
+	state: string;
+};
+
+type GithubPull = {
+	id: number;
+	number: number;
+	title: string;
+	html_url: string;
+	state: string;
+	updated_at: string;
+	user?: { login?: string } | null;
+};
+
+/** Seed the live pulse at build time (one request per watched repo). */
+export async function fetchGithubWatchPulls(): Promise<GithubPullSignal[]> {
+	const batches = await Promise.all(
+		GITHUB_WATCH_REPOS.map(async (repo) => {
+			const pulls = await fetchJson<GithubPull[]>(
+				`https://api.github.com/repos/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=2`,
+				{ headers: { 'X-GitHub-Api-Version': '2022-11-28' } },
+			);
+			return (pulls ?? []).slice(0, 1).map((pull) => ({
+				id: `pr-${repo}-${pull.number}`,
+				repo,
+				number: pull.number,
+				title: pull.title,
+				href: pull.html_url,
+				user: pull.user?.login ?? 'unknown',
+				updatedAt: pull.updated_at,
+				state: pull.state,
+			}));
+		}),
+	);
+
+	return batches
+		.flat()
+		.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+		.slice(0, 10);
 }
 
 export async function fetchPapers(limit = 12): Promise<FeedItem[]> {

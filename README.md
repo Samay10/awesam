@@ -46,9 +46,10 @@ Build-time fetches (no manual daily edits):
 
 - **Hacker News** — official Firebase API [`beststories`](https://github.com/HackerNews/API), soft-filtered toward systems/AI titles
 - **X** — no free official API; curated AI/systems handles via [FxEmbed RSS](https://docs.fxembed.com/guide/advanced/rss-atom-feeds/), ranked for AI · systems · hardware · software relevance
-- GitHub / arXiv — same rebuild cadence
+- **GitHub** — hottest rising repos at build time; live PR pulse on `/sections/github` polls flagship repos in the browser every **5 minutes**
+- arXiv — same rebuild cadence
 
-GitHub Actions redeploys on every `main` push and on a **6-hour cron** (`0 0,6,12,18 * * *` UTC), so the site refreshes four times a day.
+GitHub Actions redeploys on every `main` push and on a **6-hour cron** (`0 0,6,12,18 * * *` UTC), so the static digest refreshes four times a day. The GitHub PR pulse refreshes itself in-page without a redeploy.
 
 ## GitHub Pages
 
