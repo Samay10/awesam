@@ -10,6 +10,7 @@ export type Story = {
 	lede: string;
 	whyRead: string;
 	paragraphs: string[];
+	takeaway?: string;
 	originalHref: string;
 	image: string | null;
 	stats: string[];

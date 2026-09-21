@@ -15,58 +15,85 @@ import {
 } from './feeds';
 
 /** Bump to invalidate prior prompt caches. */
-const PROMPT_VERSION = 'v4-voice';
+const PROMPT_VERSION = 'v5-author';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
 const TEXT_CONCURRENCY = 1;
 
-const SHARED_RULES = `You write for AweSam — a technical digest read by young engineers, builders, and AI/systems people.
+const SHARED_RULES = `You write for AweSam — a technical digest for young engineers, builders, and researchers.
 
-Voice: technical-author energy. Informal is fine. Sound like a sharp human who ships code — not a summarizer bot, not a PR intern.
+Read the source carefully and write a concise technical digest of it.
+
+The output should feel like it was written by a technically experienced engineer/researcher who actually understood the material — not like an AI-generated summary.
+
+Focus on:
+- What actually happened or was built
+- The important technical mechanism, architecture, or idea
+- Why it matters to engineers/researchers
+- The key tradeoffs, limitations, or implications
+- Any numbers, benchmarks, implementation details, or concrete evidence that matter
+
+Skip generic introductions, obvious context, marketing language, and filler.
+
+Write it as a 3–4 minute technical read: dense, clear, and interesting, but concise. Explain the important parts rather than merely listing them.
+
+Use precise technical language where appropriate. Assume the reader is technically literate, so don't over-explain basic concepts.
+
+The writing should have a confident editorial voice, with natural variation in sentence length and structure. It should read like a sharp technical note from an engineer — not like "Here is a summary of the article."
+
+Informal is fine. Sound like someone who ships code.
 
 Hard bans:
-- Never meta-comment on the post ("This post…", "This tweet…", "This HN thread…", "sounds like…", "reads as…").
-- No AI slop: delve, landscape, robust, leverage, unlock, empower, game-changer, "in today's world", "it's important to note", "A closer look at", "on the wire", "source of truth".
-- Do not invent numbers, quotes, authors, or results missing from the notes.
+- Never meta-comment on the source ("This post…", "This tweet…", "This PR…", "This HN thread…", "sounds like…", "reads as…", "Here is a summary…").
+- No AI slop: delve, landscape, robust, leverage, unlock, empower, game-changer, "in today's world", "it's important to note", "A closer look at", "on the wire", "source of truth", "Privacy advocates are sounding the alarm", "The broader implication is", "helps engineers gauge/understand".
+- Do not invent numbers, quotes, authors, benchmarks, or conclusions missing from the source notes.
 - Never copy the source verbatim. Rewrite.
+- Plain prose only inside JSON strings — no markdown, bullets, headings, or numbered lists.
+
+Structure:
+- paragraphs: at least 4 proper paragraphs for a 3–4 minute read (each paragraph several sentences; not one-liners).
+- End the piece by putting the single most important takeaway in "takeaway" — what a technically informed reader should remember.
+- "lede" is the card blurb (concrete stakes, not a teaser about "why you should read").
+- "whyRead" is one sharp factual subhead under the title — not a pitch.
 
 Return ONLY valid JSON (no markdown fences):
 {
   "lede": "card blurb",
-  "whyRead": "one sentence",
-  "paragraphs": ["...", "..."]
+  "whyRead": "one sentence subhead",
+  "paragraphs": ["para1", "para2", "para3", "para4"],
+  "takeaway": "single most important takeaway"
 }`;
 
 const DESK_BRIEF: Record<DigestSource, string> = {
 	hn: `Desk: Hacker News.
-Write a cool 2–3 minute read (~320–450 words, 3–5 short paragraphs).
-Lead with the tech itself — what broke, shipped, or got argued.
-Bring in the shape of the discussion (camps, caveats, what people are checking) without saying "this post" or "this thread".
-Card lede: 45–70 words, concrete stakes.`,
+Full 3–4 minute author note (≥4 meaty paragraphs, ~450–650 words).
+Lead with the tech or claim. Fold in the shape of the discussion (camps, caveats) without saying "the thread".
+Card lede: 40–65 words.`,
 	x: `Desk: X.
-Keep it simple and to the point. 2–3 short paragraphs (~180–280 words total).
-Say what the person claimed or shipped. No fluff. No "this tweet".
-Card lede: 30–45 words, punchy.`,
+Still author voice, but tighter: 3–4 short paragraphs (~220–320 words). Simple and to the point.
+Say what was claimed or shipped. No fluff.
+Card lede: 28–45 words.`,
 	press: `Desk: tech press (WIRED / TechCrunch / The Verge).
-2–3 minute read. Lead with the product, company, or tech claim. Keep it skeptical and concrete.
-Card lede: 45–70 words.`,
+Full 3–4 minute read (≥4 paragraphs). Lead with product/company/tech claim. Skeptical and concrete.
+Card lede: 40–65 words.`,
 	reddit: `Desk: Reddit.
-2–3 minute read on the idea people are chewing on. Technical, a bit informal. Skip meme voice.
-Card lede: 40–60 words.`,
+Full 3–4 minute read (≥4 paragraphs) on the idea people are chewing on. Technical, a bit informal. Skip meme voice.
+Card lede: 35–55 words.`,
 	github: `Desk: rising GitHub repo.
-What it does, who it's for, why stars are moving. Builder voice.
-Card lede: 40–60 words.`,
+What it does, architecture/mechanism, who it's for, why stars are moving. ≥4 paragraphs.
+Card lede: 35–55 words.`,
 	papers: `Desk: research paper.
-Problem → approach → why a practitioner should care. Faithful to the abstract.
-Card lede: 45–70 words.`,
+Problem → approach → evidence → why a practitioner should care. Faithful to the abstract. ≥4 paragraphs.
+Card lede: 40–65 words.`,
 	articles: `Desk: article.
-Argument + stakes for a young engineer. Card lede: 45–70 words.`,
+Argument + mechanism + stakes. ≥4 paragraphs. Card lede: 40–65 words.`,
 };
 
 type Draft = {
 	lede: string;
 	whyRead: string;
 	paragraphs: string[];
+	takeaway: string;
 };
 
 type CacheRow = {
@@ -83,18 +110,49 @@ function statsFromMeta(meta: string) {
 		.filter(Boolean);
 }
 
-function minutesFor(paragraphs: string[]) {
-	const words = paragraphs.join(' ').split(/\s+/).filter(Boolean).length;
-	return Math.max(2, Math.min(3, Math.round(words / 180) || 2));
+function minutesFor(paragraphs: string[], takeaway: string) {
+	const words = [...paragraphs, takeaway].join(' ').split(/\s+/).filter(Boolean).length;
+	return Math.max(3, Math.min(4, Math.round(words / 160) || 3));
 }
 
 const SLOP =
-	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note/i;
+	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article|PR)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note|Here is a summary|Privacy advocates are sounding|The broader implication|helps engineers (gauge|understand)|Understanding the .+ helps/i;
 
-function isWeakDraft(draft: Draft | null | undefined, title: string) {
-	if (!draft?.lede || draft.paragraphs.length < 2) return true;
-	if (SLOP.test(draft.lede) || draft.paragraphs.some((p) => SLOP.test(p))) return true;
+function cleanProse(text: string) {
+	return text
+		.replace(/```[\s\S]*?```/g, ' ')
+		.replace(/[*_`#]+/g, '')
+		.replace(/^\s*[-•]\s+/gm, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function normalizeParagraphs(raw: unknown): string[] {
+	if (!Array.isArray(raw)) return [];
+	const out: string[] = [];
+	for (const entry of raw) {
+		const chunks = String(entry)
+			.split(/\n{2,}/)
+			.map(cleanProse)
+			.filter((p) => p.length > 40);
+		out.push(...chunks);
+	}
+	return out;
+}
+
+function minParagraphs(source: DigestSource) {
+	return source === 'x' ? 3 : 4;
+}
+
+function isWeakDraft(draft: Draft | null | undefined, title: string, source: DigestSource) {
+	if (!draft?.lede || !draft.takeaway) return true;
+	if (draft.paragraphs.length < minParagraphs(source)) return true;
+	const blob = [draft.lede, draft.whyRead, draft.takeaway, ...draft.paragraphs].join('\n');
+	if (SLOP.test(blob)) return true;
 	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return true;
+	const words = [...draft.paragraphs, draft.takeaway].join(' ').split(/\s+/).filter(Boolean).length;
+	if (source !== 'x' && words < 380) return true;
+	if (source === 'x' && words < 180) return true;
 	return false;
 }
 
@@ -104,15 +162,12 @@ function extractJson(text: string): Draft | null {
 	if (start < 0 || end <= start) return null;
 	try {
 		const parsed = JSON.parse(text.slice(start, end + 1)) as Partial<Draft>;
-		const paragraphs = Array.isArray(parsed.paragraphs)
-			? parsed.paragraphs.map((p) => String(p).trim()).filter(Boolean)
-			: [];
-		if (!parsed.lede || paragraphs.length < 2) return null;
-		return {
-			lede: String(parsed.lede).trim(),
-			whyRead: String(parsed.whyRead ?? '').trim(),
-			paragraphs,
-		};
+		const paragraphs = normalizeParagraphs(parsed.paragraphs);
+		const lede = cleanProse(String(parsed.lede ?? ''));
+		const whyRead = cleanProse(String(parsed.whyRead ?? ''));
+		const takeaway = cleanProse(String(parsed.takeaway ?? ''));
+		if (!lede || paragraphs.length < 2 || !takeaway) return null;
+		return { lede, whyRead, paragraphs, takeaway };
 	} catch {
 		return null;
 	}
@@ -139,41 +194,43 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 		`Source desk: ${source}`,
 		`Source label: ${item.source}`,
 		`Title: ${item.title}`,
-		item.summary ? `Source notes:\n${item.summary}` : 'Source notes: title/meta only — do not invent details.',
+		item.summary
+			? `Source notes (read carefully; stay faithful):\n${item.summary}`
+			: 'Source notes: title/meta only — do not invent details, numbers, or conclusions.',
 		item.meta ? `Signals: ${item.meta}` : '',
 		`URL (orientation only): ${item.href}`,
 		DESK_BRIEF[source],
-		`Write like a technical author for young engineers. Informal OK. Zero meta commentary about "the post".`,
+		`Minimum ${minParagraphs(source)} proper paragraphs. End with a concrete takeaway. Author voice — not a summary bot.`,
 	]
 		.filter(Boolean)
 		.join('\n\n');
 }
 
 async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft | null> {
-	const maxTokens = source === 'x' ? 900 : 1800;
+	const maxTokens = source === 'x' ? 1200 : 2400;
 	try {
 		const raw = await chatCompletion(
 			[
 				{ role: 'system', content: SHARED_RULES },
 				{ role: 'user', content: buildUserPrompt(item, source) },
 			],
-			{ maxTokens, temperature: 0.6, json: true },
+			{ maxTokens, temperature: 0.55, json: true },
 		);
 		const parsed = extractJson(raw);
-		if (!parsed || isWeakDraft(parsed, item.title)) {
+		if (!parsed || isWeakDraft(parsed, item.title, source)) {
 			console.warn(`[enrich] weak draft for ${item.id}; retrying once`);
 			const retry = await chatCompletion(
 				[
 					{ role: 'system', content: SHARED_RULES },
 					{
 						role: 'user',
-						content: `${buildUserPrompt(item, source)}\n\nPrevious draft was too meta or generic. Rewrite: lead with the tech, no "this post/tweet" framing.`,
+						content: `${buildUserPrompt(item, source)}\n\nPrevious draft was too short, too meta, or AI-slop. Rewrite as a dense 3–4 minute technical note with ≥${minParagraphs(source)} real paragraphs and a sharp takeaway. Lead with the mechanism.`,
 					},
 				],
-				{ maxTokens, temperature: 0.7, json: true },
+				{ maxTokens, temperature: 0.65, json: true },
 			);
 			const second = extractJson(retry);
-			if (!second || isWeakDraft(second, item.title)) return null;
+			if (!second || isWeakDraft(second, item.title, source)) return null;
 			return second;
 		}
 		return parsed;
@@ -209,7 +266,7 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 	const cacheOk =
 		cached?.version === PROMPT_VERSION &&
 		cached.title === item.title &&
-		!isWeakDraft(cached.draft, item.title);
+		!isWeakDraft(cached.draft, item.title, source);
 
 	const draft = cacheOk ? cached!.draft : await draftFromModel(item, source);
 	if (!draft) {
@@ -232,10 +289,11 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		lede: draft.lede,
 		whyRead: draft.whyRead,
 		paragraphs: draft.paragraphs,
+		takeaway: draft.takeaway,
 		originalHref: item.href,
 		image: null,
 		stats: statsFromMeta(item.meta),
-		meta: `${minutesFor(draft.paragraphs)} min read`,
+		meta: `${minutesFor(draft.paragraphs, draft.takeaway)} min read`,
 		sourceLabel: item.source,
 	};
 }

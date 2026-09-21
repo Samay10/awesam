@@ -50,12 +50,17 @@ const originalLabel =
 
 			<div class="body measure">
 				{story.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+				{story.takeaway && (
+					<p class="takeaway">
+						<span class="takeaway-label">Takeaway</span>
+						{story.takeaway}
+					</p>
+				)}
 			</div>
 
 			<footer class="origin">
 				<p>
-					This is an AweSam briefing. For the primary source, discussion, and updates, continue on the original
-					site.
+					AweSam briefing — continue on the original for source material, discussion, and updates.
 				</p>
 				<a class="origin-link" href={story.originalHref} target="_blank" rel="noreferrer">
 					{originalLabel} ↗
@@ -103,45 +108,59 @@ const originalLabel =
 	h1 {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: clamp(2.2rem, 6vw, 3.4rem);
+		font-size: clamp(1.65rem, 4.2vw, 2.45rem);
 		font-weight: 650;
-		letter-spacing: -0.035em;
-		line-height: 1.05;
+		letter-spacing: -0.03em;
+		line-height: 1.18;
+		overflow-wrap: anywhere;
+		text-wrap: pretty;
 	}
 
 	.dek {
 		margin: 0;
-		font-size: 1.15rem;
+		font-size: 1.05rem;
 		line-height: 1.55;
 		color: var(--color-on-surface-variant);
-		font-style: italic;
-		font-family: var(--font-display);
+		font-family: var(--font-body);
+		font-style: normal;
+		max-width: 38rem;
 	}
 
 	.body {
-		max-width: 42rem;
+		max-width: 40rem;
 	}
 
 	.body p {
-		margin: 0 0 1.25rem;
-		font-size: 1.125rem;
-		line-height: 1.75;
+		margin: 0 0 1.35rem;
+		font-size: 1.0625rem;
+		line-height: 1.72;
+		overflow-wrap: break-word;
+		text-wrap: pretty;
 	}
 
-	.body p:first-of-type::first-letter {
-		float: left;
-		font-family: var(--font-display);
-		font-size: 3.6rem;
-		line-height: 0.8;
-		padding: 0.15rem 0.55rem 0 0;
-		font-weight: 650;
+	.takeaway {
+		margin-top: 1.75rem !important;
+		padding: 1rem 0 0;
+		border-top: 1px solid color-mix(in srgb, var(--color-outline-variant) 55%, transparent);
+		font-size: 1.05rem !important;
+		line-height: 1.65 !important;
+		color: var(--color-on-surface);
+	}
+
+	.takeaway-label {
+		display: block;
+		margin-bottom: 0.45rem;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		color: var(--color-secondary);
 	}
 
 	.origin {
-		max-width: 42rem;
-		margin-top: 2.5rem;
-		padding: 1.15rem 1.25rem;
+		max-width: 40rem;
+		margin-top: 2.25rem;
+		padding: 1.05rem 1.15rem;
 		border-radius: 0.3rem;
 		background: var(--color-surface-container-low);
 		display: grid;
