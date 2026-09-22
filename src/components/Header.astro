@@ -161,7 +161,7 @@ const feeds = [
 	}
 
 	.search {
-		display: none;
+		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
 		height: 2rem;
@@ -177,12 +177,9 @@ const feeds = [
 		cursor: pointer;
 	}
 
+	.search span,
 	.search kbd {
-		margin-left: 0.35rem;
-		padding: 0.1rem 0.3rem;
-		border: 1px solid var(--color-border);
-		border-radius: 0.2rem;
-		background: var(--color-surface);
+		display: none;
 	}
 
 	.about {
@@ -225,11 +222,18 @@ const feeds = [
 		.about {
 			display: inline;
 		}
-	}
 
-	@media (min-width: 1024px) {
-		.search {
-			display: inline-flex;
+		.search span,
+		.search kbd {
+			display: inline;
+		}
+
+		.search kbd {
+			margin-left: 0.35rem;
+			padding: 0.1rem 0.3rem;
+			border: 1px solid var(--color-border);
+			border-radius: 0.2rem;
+			background: var(--color-surface);
 		}
 	}
 

@@ -461,9 +461,9 @@ export async function fetchGithubWatchPulls(): Promise<GithubRepoPulse[]> {
 
 export async function fetchPapers(limit = 12): Promise<FeedItem[]> {
 	const [arxiv, conferences, orgs] = await Promise.all([
-		fetchArxivPapers(Math.max(limit, 10)),
-		fetchOpenAlexConferencePapers(12),
-		fetchOpenAlexOrgPapers(12),
+		fetchArxivPapers(Math.max(limit, 18)),
+		fetchOpenAlexConferencePapers(16),
+		fetchOpenAlexOrgPapers(16),
 	]);
 
 	const seen = new Set<string>();
@@ -492,9 +492,9 @@ function diversifyPapers(items: FeedItem[], limit: number): FeedItem[] {
 		}
 	};
 
-	take((item) => /neurips|iclr|icml/i.test(item.source), 3);
-	take((item) => /arxiv/i.test(item.source), 4);
-	take((item) => /acl|emnlp|cvpr|aaai|lab|org/i.test(item.source), 3);
+	take((item) => /neurips|iclr|icml/i.test(item.source), 4);
+	take((item) => /arxiv/i.test(item.source), 8);
+	take((item) => /acl|emnlp|cvpr|aaai|lab|org/i.test(item.source), 6);
 	take(() => true, limit);
 	return picks.slice(0, limit);
 }

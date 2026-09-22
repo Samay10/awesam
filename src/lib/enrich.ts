@@ -119,7 +119,7 @@ function minutesFor(paragraphs: string[], takeaway: string) {
 const SLOP =
 	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article|PR)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note|Here is a summary|Privacy advocates are sounding|The broader implication|helps engineers (gauge|understand)|Understanding the .+ helps|What we can verify|Why it showed up here|ranking and relevance filters|listing description is thin|Skip the hype layer|desk fallback/i;
 
-const MARKUP = /<!--|<\/?[a-z][^>]*>|&(?:quot|amp|lt|gt|nbsp|#\d+|#x[0-9a-f]+);|&39/i;
+const MARKUP = /<!--|<\/[a-z][^>]*>|<[a-z][^>]{0,40}>/i;
 
 function cleanProse(text: string) {
 	return toPlainText(text)
@@ -129,7 +129,9 @@ function cleanProse(text: string) {
 }
 
 function looksDirty(text: string) {
-	return MARKUP.test(text) || SLOP.test(text);
+	if (SLOP.test(text)) return true;
+	// Real leftover HTML only — ignore bare < comparisons in math/prose.
+	return MARKUP.test(text);
 }
 
 function normalizeParagraphs(raw: unknown): string[] {
@@ -169,8 +171,44 @@ function isUsableDraft(draft: Draft | null | undefined, title: string) {
 	const blob = [draft.lede, draft.whyRead, draft.takeaway, ...draft.paragraphs].join('\n');
 	if (looksDirty(blob)) return false;
 	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return false;
-	if (draft.paragraphs.some((paragraph) => paragraph.length < 80)) return false;
+	if (draft.paragraphs.some((paragraph) => paragraph.length < 60)) return false;
 	return true;
+}
+
+/** When the model blanks on a paper, rewrite the abstract into a short note — never invent. */
+function abstractDraft(item: FeedItem): Draft | null {
+	const note = cleanProse(item.summary || '');
+	const title = cleanProse(item.title);
+	if (note.length < 160) return null;
+
+	const sentences = note
+		.split(/(?<=[.!?])\s+/)
+		.map((part) => part.trim())
+		.filter((part) => part.length > 20);
+	if (sentences.length < 2) return null;
+
+	const chunks: string[] = [];
+	let bucket = '';
+	for (const sentence of sentences) {
+		bucket = bucket ? `${bucket} ${sentence}` : sentence;
+		if (bucket.length >= 160) {
+			chunks.push(bucket);
+			bucket = '';
+		}
+	}
+	if (bucket) chunks.push(bucket);
+	while (chunks.length < 4 && sentences.length) {
+		chunks.push(sentences[chunks.length % sentences.length]);
+	}
+
+	const paragraphs = chunks.slice(0, 5);
+	const lede = paragraphs[0].slice(0, 280);
+	return {
+		lede,
+		whyRead: cleanProse(item.meta || item.source),
+		paragraphs,
+		takeaway: `Remember the core claim in “${title}” and check the paper for method + evidence before you cite it.`,
+	};
 }
 
 function extractJson(text: string): Draft | null {
@@ -298,6 +336,14 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		};
 	}
 	if (!draft || !isUsableDraft(draft, item.title)) {
+		if (source === 'papers') {
+			const fromAbstract = abstractDraft(item);
+			if (fromAbstract && isUsableDraft(fromAbstract, item.title)) {
+				draft = fromAbstract;
+			}
+		}
+	}
+	if (!draft || !isUsableDraft(draft, item.title)) {
 		console.warn(`[enrich] skipping ${item.id} — briefing was empty or still had markup`);
 		return null;
 	}
@@ -382,7 +428,7 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	const [hn, github, papers, x, press, reddit] = await Promise.all([
 		fetchHackerNews(14),
 		fetchHottestGithubToday(10),
-		fetchPapers(12),
+		fetchPapers(24),
 		fetchXTimeline(10),
 		fetchPressNews(10),
 		fetchRedditTech(8),

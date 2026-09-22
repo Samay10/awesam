@@ -1,0 +1,369 @@
+---
+import { allStories, loadCatalog } from '../lib/catalog';
+import { toPlainText } from '../lib/plain';
+import { readPath } from '../lib/buildDigest';
+
+const catalog = await loadCatalog();
+const index = allStories(catalog).map((story) => ({
+	id: story.id,
+	title: toPlainText(story.title),
+	lede: toPlainText(story.lede),
+	badge: story.badge,
+	source: story.sourceLabel,
+	meta: story.meta,
+	href: readPath(story.id),
+}));
+---
+
+<div class="search-root" data-search-root hidden>
+	<button type="button" class="search-scrim" data-search-close aria-label="Close search"></button>
+	<div
+		class="search-panel"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Search AweSam"
+		data-search-panel
+	>
+		<div class="search-bar">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+				<circle cx="11" cy="11" r="7"></circle>
+				<path d="m20 20-3.5-3.5"></path>
+			</svg>
+			<input
+				type="search"
+				data-search-input
+				placeholder="Search digest, HN, X, GitHub, papers…"
+				autocomplete="off"
+				autocapitalize="off"
+				spellcheck="false"
+			/>
+			<kbd data-search-hint>esc</kbd>
+		</div>
+		<ul class="search-results" data-search-results role="listbox" aria-label="Results"></ul>
+		<p class="search-empty" data-search-empty hidden>No matches.</p>
+		<p class="search-foot">
+			<span>↑↓ navigate</span>
+			<span>↵ open</span>
+			<span>esc close</span>
+		</p>
+	</div>
+</div>
+
+<script is:inline define:vars={{ searchIndex: index }}>
+	window.__AWESAM_SEARCH__ = searchIndex;
+</script>
+
+<script>
+	type Hit = {
+		id: string;
+		title: string;
+		lede: string;
+		badge: string;
+		source: string;
+		meta: string;
+		href: string;
+	};
+
+	declare global {
+		interface Window {
+			__AWESAM_SEARCH__?: Hit[];
+		}
+	}
+
+	const root = document.querySelector('[data-search-root]') as HTMLElement | null;
+	const input = document.querySelector('[data-search-input]') as HTMLInputElement | null;
+	const results = document.querySelector('[data-search-results]') as HTMLElement | null;
+	const empty = document.querySelector('[data-search-empty]') as HTMLElement | null;
+	const openBtn = document.querySelector('button.search') as HTMLButtonElement | null;
+	const hits: Hit[] = Array.isArray(window.__AWESAM_SEARCH__) ? window.__AWESAM_SEARCH__ : [];
+
+	let active = -1;
+	let filtered: Hit[] = [];
+
+	function open() {
+		if (!root || !input) return;
+		root.hidden = false;
+		document.documentElement.classList.add('search-open');
+		input.value = '';
+		active = -1;
+		render('');
+		requestAnimationFrame(() => input.focus());
+	}
+
+	function close() {
+		if (!root) return;
+		root.hidden = true;
+		document.documentElement.classList.remove('search-open');
+		active = -1;
+	}
+
+	function score(hit: Hit, q: string) {
+		const hay = `${hit.title} ${hit.lede} ${hit.badge} ${hit.source}`.toLowerCase();
+		const parts = q.split(/\s+/).filter(Boolean);
+		if (!parts.length) return 1;
+		let total = 0;
+		for (const part of parts) {
+			if (!hay.includes(part)) return 0;
+			if (hit.title.toLowerCase().includes(part)) total += 5;
+			else if (hit.badge.toLowerCase().includes(part) || hit.source.toLowerCase().includes(part)) total += 3;
+			else total += 1;
+		}
+		return total;
+	}
+
+	function escapeHtml(value: string) {
+		return value
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;');
+	}
+
+	function render(query: string) {
+		if (!results || !empty) return;
+		const q = query.trim().toLowerCase();
+		filtered = hits
+			.map((hit) => ({ hit, s: score(hit, q) }))
+			.filter((row) => row.s > 0)
+			.sort((a, b) => b.s - a.s || a.hit.title.localeCompare(b.hit.title))
+			.slice(0, 12)
+			.map((row) => row.hit);
+
+		results.innerHTML = '';
+		empty.hidden = filtered.length > 0 || !q;
+
+		filtered.forEach((hit, index) => {
+			const li = document.createElement('li');
+			li.setAttribute('role', 'option');
+			li.dataset.index = String(index);
+			li.innerHTML = `
+				<a href="${hit.href}">
+					<span class="meta">${escapeHtml(hit.badge)}${hit.meta ? ` · ${escapeHtml(hit.meta)}` : ''}</span>
+					<span class="title">${escapeHtml(hit.title)}</span>
+					<span class="lede">${escapeHtml(hit.lede)}</span>
+				</a>
+			`;
+			results.appendChild(li);
+		});
+
+		active = filtered.length ? 0 : -1;
+		paintActive();
+	}
+
+	function paintActive() {
+		results?.querySelectorAll('li').forEach((node, index) => {
+			node.classList.toggle('active', index === active);
+		});
+		const current = results?.querySelector('li.active') as HTMLElement | null;
+		current?.scrollIntoView({ block: 'nearest' });
+	}
+
+	function go(index: number) {
+		const hit = filtered[index];
+		if (hit) window.location.href = hit.href;
+	}
+
+	openBtn?.addEventListener('click', (event) => {
+		event.preventDefault();
+		open();
+	});
+
+	root?.querySelectorAll('[data-search-close]').forEach((node) => {
+		node.addEventListener('click', close);
+	});
+
+	input?.addEventListener('input', () => {
+		if (input) render(input.value);
+	});
+
+	results?.addEventListener('mousemove', (event) => {
+		const li = (event.target as HTMLElement).closest('li');
+		if (!li) return;
+		active = Number(li.dataset.index);
+		paintActive();
+	});
+
+	document.addEventListener('keydown', (event) => {
+		const key = event.key.toLowerCase();
+		const meta = event.metaKey || event.ctrlKey;
+
+		if (meta && key === 'k') {
+			event.preventDefault();
+			if (root && !root.hidden) close();
+			else open();
+			return;
+		}
+
+		if (!root || root.hidden) return;
+
+		if (key === 'escape') {
+			event.preventDefault();
+			close();
+			return;
+		}
+
+		if (key === 'arrowdown') {
+			event.preventDefault();
+			if (!filtered.length) return;
+			active = (active + 1) % filtered.length;
+			paintActive();
+			return;
+		}
+
+		if (key === 'arrowup') {
+			event.preventDefault();
+			if (!filtered.length) return;
+			active = (active - 1 + filtered.length) % filtered.length;
+			paintActive();
+			return;
+		}
+
+		if (key === 'enter' && active >= 0) {
+			event.preventDefault();
+			go(active);
+		}
+	});
+</script>
+
+<style is:global>
+	html.search-open {
+		overflow: hidden;
+	}
+
+	.search-root {
+		position: fixed;
+		inset: 0;
+		z-index: 80;
+		display: grid;
+		place-items: start center;
+		padding: min(18vh, 7rem) 1rem 2rem;
+	}
+
+	.search-root[hidden] {
+		display: none;
+	}
+
+	.search-scrim {
+		position: absolute;
+		inset: 0;
+		border: 0;
+		background: color-mix(in srgb, var(--color-surface) 35%, #000 65%);
+		backdrop-filter: blur(4px);
+		cursor: pointer;
+	}
+
+	.search-panel {
+		position: relative;
+		z-index: 1;
+		width: min(36rem, 100%);
+		max-height: min(70vh, 34rem);
+		display: grid;
+		grid-template-rows: auto minmax(0, 1fr) auto;
+		border: 1px solid var(--color-border);
+		border-radius: 0.55rem;
+		background: var(--color-surface);
+		box-shadow: 0 18px 50px color-mix(in srgb, #000 28%, transparent);
+		overflow: hidden;
+	}
+
+	.search-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.65rem;
+		padding: 0.85rem 1rem;
+		border-bottom: 1px solid var(--color-border);
+		color: var(--color-on-surface-variant);
+	}
+
+	.search-bar input {
+		flex: 1;
+		border: 0;
+		outline: none;
+		background: transparent;
+		color: var(--color-on-surface);
+		font-family: var(--font-body);
+		font-size: 1rem;
+		line-height: 1.4;
+	}
+
+	.search-bar kbd {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		padding: 0.15rem 0.35rem;
+		border: 1px solid var(--color-border);
+		border-radius: 0.2rem;
+		color: var(--color-outline);
+	}
+
+	.search-results {
+		list-style: none;
+		margin: 0;
+		padding: 0.35rem;
+		overflow: auto;
+	}
+
+	.search-results li a {
+		display: grid;
+		gap: 0.2rem;
+		padding: 0.7rem 0.75rem;
+		border-radius: 0.35rem;
+		text-decoration: none;
+		color: inherit;
+	}
+
+	.search-results li.active a,
+	.search-results li a:hover {
+		background: var(--color-surface-container);
+	}
+
+	.search-results .meta {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-secondary);
+	}
+
+	.search-results .title {
+		font-family: var(--font-display);
+		font-size: 1.05rem;
+		font-weight: 600;
+		letter-spacing: -0.02em;
+		line-height: 1.25;
+	}
+
+	.search-results .lede {
+		font-size: 0.88rem;
+		line-height: 1.45;
+		color: var(--color-on-surface-variant);
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.search-empty {
+		margin: 0;
+		padding: 1.5rem 1rem;
+		text-align: center;
+		color: var(--color-on-surface-variant);
+		font-size: 0.95rem;
+	}
+
+	.search-foot {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.85rem;
+		margin: 0;
+		padding: 0.55rem 1rem;
+		border-top: 1px solid var(--color-border);
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--color-outline);
+	}
+</style>
