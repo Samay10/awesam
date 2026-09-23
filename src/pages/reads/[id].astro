@@ -29,7 +29,7 @@ const sectionHref =
 				: story.source === 'papers'
 					? `${base}sections/papers/`
 					: `${base}`;
-const title = toPlainText(story.title);
+const title = toPlainText(story.title).replace(/[.…]+$/u, '').trim();
 const dek = toPlainText(story.whyRead);
 const paragraphs = story.paragraphs.map((paragraph) => toPlainText(paragraph)).filter(Boolean);
 const takeaway = toPlainText(story.takeaway ?? '');

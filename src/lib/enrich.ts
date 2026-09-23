@@ -318,15 +318,26 @@ function badgeFor(source: DigestSource, item: FeedItem) {
 	return 'Article';
 }
 
+function resolveStoryTitle(item: FeedItem) {
+	const raw = toPlainText(item.title);
+	const truncated = /…|\.\.\.$/.test(raw);
+	const note = toPlainText(item.summary || '');
+	if (truncated && note.length > raw.replace(/[.…]+$/u, '').trim().length + 12) {
+		return note;
+	}
+	return raw.replace(/[.…]+$/u, '').trim() || note || 'Untitled';
+}
+
 async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story | null> {
 	const id = storySlug(item.id);
+	const title = resolveStoryTitle(item);
 	const cached = await readCache(id);
 	const cacheOk =
 		cached?.version === PROMPT_VERSION &&
-		cached.title === item.title &&
-		isUsableDraft(cached.draft, item.title);
+		cached.title === title &&
+		isUsableDraft(cached.draft, title);
 
-	let draft = cacheOk ? cached!.draft : await draftFromModel(item, source);
+	let draft = cacheOk ? cached!.draft : await draftFromModel({ ...item, title }, source);
 	if (draft) {
 		draft = {
 			lede: cleanProse(draft.lede),
@@ -335,22 +346,22 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 			takeaway: cleanProse(draft.takeaway),
 		};
 	}
-	if (!draft || !isUsableDraft(draft, item.title)) {
+	if (!draft || !isUsableDraft(draft, title)) {
 		if (source === 'papers') {
-			const fromAbstract = abstractDraft(item);
-			if (fromAbstract && isUsableDraft(fromAbstract, item.title)) {
+			const fromAbstract = abstractDraft({ ...item, title });
+			if (fromAbstract && isUsableDraft(fromAbstract, title)) {
 				draft = fromAbstract;
 			}
 		}
 	}
-	if (!draft || !isUsableDraft(draft, item.title)) {
+	if (!draft || !isUsableDraft(draft, title)) {
 		console.warn(`[enrich] skipping ${item.id} — briefing was empty or still had markup`);
 		return null;
 	}
 
 	await writeCache({
 		id,
-		title: item.title,
+		title,
 		version: PROMPT_VERSION,
 		draft,
 	});
@@ -359,7 +370,7 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		id,
 		source,
 		badge: badgeFor(source, item),
-		title: toPlainText(item.title),
+		title,
 		lede: draft.lede,
 		whyRead: draft.whyRead,
 		paragraphs: draft.paragraphs,

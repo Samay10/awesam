@@ -1,4 +1,4 @@
-import { clip } from './plain';
+import { clip, toPlainText } from './plain';
 
 export type FeedItem = {
 	id: string;
@@ -132,6 +132,11 @@ function isoDate(daysAgo: number) {
 
 function clean(text: string, max = 220) {
 	return clip(text, max);
+}
+
+/** Full item title — never appends ellipsis. Truncation is for cards only. */
+function cleanTitle(text: string) {
+	return toPlainText(text).replace(/\s+/g, ' ').trim();
 }
 
 function feedBody(node: string, max: number) {
@@ -607,7 +612,7 @@ function mapOpenAlexWork(work: OpenAlexWork, fallbackLabel: string, baseWeight: 
 
 	return {
 		id: `oa-${work.id.split('/').pop()}`,
-		title: clean(title, 140),
+		title: cleanTitle(title),
 		href,
 		source: label,
 		meta: [authors || label, date, cites ? `${cites} cites` : ''].filter(Boolean).join(' · '),
@@ -679,7 +684,7 @@ async function fetchArxivPapers(limit: number): Promise<FeedItem[]> {
 
 			return {
 				id: `arxiv-${href || index}`,
-				title: clean(title, 140),
+				title: cleanTitle(title),
 				href,
 				source: venue ? `arXiv · ${venue.label}` : 'arXiv',
 				meta: [authors, date].filter(Boolean).join(' · '),
@@ -758,7 +763,7 @@ async function fetchRssOutlet(
 	return parseFeedNodes(xml)
 		.slice(0, 12)
 		.map((node, index) => {
-			const title = clean(xmlTag(node, 'title'), 140);
+			const title = cleanTitle(xmlTag(node, 'title'));
 			const summary = feedBody(node, prefix === 'reddit' ? 1600 : 700) || title;
 			const href = feedLink(node) || url;
 			const date = (xmlTag(node, 'pubDate') || xmlTag(node, 'updated') || xmlTag(node, 'published') || '').slice(0, 25);
@@ -838,9 +843,9 @@ async function fetchHandleFeed(
 			.slice(0, 8)
 			.map((node, index) => {
 				const rawTitle = xmlTag(node, 'title') || xmlTag(node, 'description');
-				const full = clean(rawTitle.replace(/^RT\s+@?\w+:\s*/i, ''), 280);
+				const full = cleanTitle(rawTitle.replace(/^RT\s+@?\w+:\s*/i, ''));
 				const body = feedBody(node, 900).replace(/^RT\s+@?\w+:\s*/i, '');
-				const title = clean(full, 96);
+				const title = full;
 				const summary = body.length >= full.length ? body : full;
 				const href =
 					xmlTag(node, 'link') ||
