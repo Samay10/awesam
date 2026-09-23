@@ -166,12 +166,19 @@ function isWeakDraft(draft: Draft | null | undefined, title: string, source: Dig
 	return false;
 }
 
-function isUsableDraft(draft: Draft | null | undefined, title: string) {
+function isUsableDraft(draft: Draft | null | undefined, title: string, source?: DigestSource) {
 	if (!draft?.lede || draft.paragraphs.length < 2 || !draft.takeaway) return false;
 	const blob = [draft.lede, draft.whyRead, draft.takeaway, ...draft.paragraphs].join('\n');
 	if (looksDirty(blob)) return false;
-	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return false;
-	if (draft.paragraphs.some((paragraph) => paragraph.length < 60)) return false;
+	if (
+		source !== 'x' &&
+		draft.lede.includes(title) &&
+		draft.lede.length < title.length + 40
+	) {
+		return false;
+	}
+	const minLen = source === 'x' ? 40 : 60;
+	if (draft.paragraphs.some((paragraph) => paragraph.length < minLen)) return false;
 	return true;
 }
 
@@ -210,6 +217,36 @@ function abstractDraft(item: FeedItem): Draft | null {
 		takeaway: `Remember the core claim in “${title}” and check the paper for method + evidence before you cite it.`,
 	};
 }
+
+/** X (and similar) — keep the post on the wire when Groq is rate-limited. */
+function tweetDraft(item: FeedItem): Draft | null {
+	const note = cleanProse(item.summary || item.title);
+	if (note.length < 40) return null;
+
+	const cutAt = note.lastIndexOf(' ', 180);
+	const lede =
+		note.length > 200 ? note.slice(0, cutAt > 80 ? cutAt : 180).trim() : note;
+	const paragraphs = [
+		note,
+		`Posted by ${item.source}. The claim stands or falls on the original thread — check links, numbers, and whether anyone reproduced it.`,
+		`If it touches your stack, open the post before you treat it as decided. Replies often carry the caveats the first line leaves out.`,
+	].map(cleanProse);
+
+	return {
+		lede: lede.slice(0, 280) || note.slice(0, 200),
+		whyRead: cleanProse(item.meta || item.source),
+		paragraphs,
+		takeaway: 'Verify the concrete claim on the original post before you build or cite from it.',
+	};
+}
+
+function deskDraft(item: FeedItem, source: DigestSource): Draft | null {
+	if (source === 'papers') return abstractDraft(item);
+	if (source === 'x') return tweetDraft(item);
+	return null;
+}
+
+let textBudgetExhausted = false;
 
 function extractJson(text: string): Draft | null {
 	const start = text.indexOf('{');
@@ -262,6 +299,8 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 }
 
 async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft | null> {
+	if (textBudgetExhausted) return null;
+
 	const maxTokens = source === 'x' ? 1200 : 2400;
 	let salvage: Draft | null = null;
 	try {
@@ -273,7 +312,7 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 			{ maxTokens, temperature: 0.55, json: true },
 		);
 		const parsed = extractJson(raw);
-		if (parsed && isUsableDraft(parsed, item.title)) salvage = parsed;
+		if (parsed && isUsableDraft(parsed, item.title, source)) salvage = parsed;
 		if (parsed && !isWeakDraft(parsed, item.title, source)) return parsed;
 
 		console.warn(`[enrich] weak draft for ${item.id}; retrying once`);
@@ -289,11 +328,16 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 		);
 		const second = extractJson(retry);
 		if (second && !isWeakDraft(second, item.title, source)) return second;
-		if (second && isUsableDraft(second, item.title)) return second;
+		if (second && isUsableDraft(second, item.title, source)) return second;
 		if (salvage) return salvage;
 		return null;
 	} catch (error) {
-		console.warn(`[enrich] text failed for ${item.id}:`, error instanceof Error ? error.message : error);
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(`[enrich] text failed for ${item.id}:`, message);
+		if (/429|tokens per day|TPD|rate limit/i.test(message)) {
+			textBudgetExhausted = true;
+			console.warn('[enrich] Groq budget exhausted — using desk drafts for remaining items');
+		}
 		return salvage;
 	}
 }
@@ -335,7 +379,7 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 	const cacheOk =
 		cached?.version === PROMPT_VERSION &&
 		cached.title === title &&
-		isUsableDraft(cached.draft, title);
+		isUsableDraft(cached.draft, title, source);
 
 	let draft = cacheOk ? cached!.draft : await draftFromModel({ ...item, title }, source);
 	if (draft) {
@@ -346,15 +390,14 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 			takeaway: cleanProse(draft.takeaway),
 		};
 	}
-	if (!draft || !isUsableDraft(draft, title)) {
-		if (source === 'papers') {
-			const fromAbstract = abstractDraft({ ...item, title });
-			if (fromAbstract && isUsableDraft(fromAbstract, title)) {
-				draft = fromAbstract;
-			}
+	if (!draft || !isUsableDraft(draft, title, source)) {
+		const fallback = deskDraft({ ...item, title }, source);
+		if (fallback && isUsableDraft(fallback, title, source)) {
+			console.warn(`[enrich] desk draft for ${item.id} (${source})`);
+			draft = fallback;
 		}
 	}
-	if (!draft || !isUsableDraft(draft, title)) {
+	if (!draft || !isUsableDraft(draft, title, source)) {
 		console.warn(`[enrich] skipping ${item.id} — briefing was empty or still had markup`);
 		return null;
 	}
@@ -458,8 +501,8 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 
 	const jobs: Sourced[] = [
 		...digestPicks,
-		...hn.map((item) => ({ item, source: 'hn' as const })),
 		...x.map((item) => ({ item, source: 'x' as const })),
+		...hn.map((item) => ({ item, source: 'hn' as const })),
 		...press.map((item) => ({ item, source: 'press' as const })),
 		...reddit.map((item) => ({ item, source: 'reddit' as const })),
 		...github.map((item) => ({ item, source: 'github' as const })),
@@ -497,7 +540,7 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	await mkdir(path.dirname(CATALOG_PATH), { recursive: true });
 	await writeFile(CATALOG_PATH, JSON.stringify(catalog, null, 2));
 	console.log(
-		`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length}; github ${catalog.github.length}; papers ${catalog.papers.length}; press ${catalog.press.length}; reddit ${catalog.reddit.length})`,
+		`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length}; x ${catalog.x.length}; github ${catalog.github.length}; papers ${catalog.papers.length}; press ${catalog.press.length}; reddit ${catalog.reddit.length})`,
 	);
 	return catalog;
 }
