@@ -21,7 +21,7 @@ const PROMPT_VERSION = 'v6-plain';
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
 const TEXT_CONCURRENCY = 1;
 
-const SHARED_RULES = `You write for AweSam — a technical digest for young engineers, builders, and researchers.
+const SHARED_RULES = `You write for Prodigy — a technical digest for young engineers, builders, and researchers.
 
 Read the source carefully and write a concise technical digest of it.
 

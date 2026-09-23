@@ -175,7 +175,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> 
 			...init,
 			headers: {
 				Accept: 'application/json',
-				'User-Agent': 'AweSam/1.0 (https://samay10.github.io/awesam/; mailto:sam10ashar@gmail.com)',
+				'User-Agent': 'Prodigy/1.0 (https://www.prodigy.org.in/; mailto:sam10ashar@gmail.com)',
 				...(onGithub ? githubAuthHeaders() : {}),
 				...init?.headers,
 			},
@@ -197,7 +197,7 @@ async function fetchText(url: string): Promise<string | null> {
 		const response = await fetch(url, {
 			headers: {
 				Accept: 'application/atom+xml, application/rss+xml, application/xml, text/xml, text/html',
-				'User-Agent': 'AweSam/1.0 (https://samay10.github.io/awesam/)',
+				'User-Agent': 'Prodigy/1.0 (https://www.prodigy.org.in/)',
 			},
 			signal: AbortSignal.timeout(8000),
 		});

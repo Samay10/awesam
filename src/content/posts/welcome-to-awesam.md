@@ -1,6 +1,6 @@
 ---
 title: Welcome to the press
-description: A short note on why AweSam exists and what you’ll find here.
+description: A short note on why Prodigy exists and what you’ll find here.
 pubDate: 2026-09-19
 tags:
   - journal
@@ -8,7 +8,7 @@ tags:
 draft: false
 ---
 
-AweSam is a small press for the things I’m learning — technical and otherwise — written slowly, on purpose.
+Prodigy is a small press for the things I’m learning — technical and otherwise — written slowly, on purpose.
 
 This isn’t a feed. It’s a journal: systems notes, craft notes, and the occasional non-technical digression when something sticks.
 

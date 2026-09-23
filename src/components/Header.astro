@@ -26,7 +26,7 @@ const feeds = [
 		<nav class="segment" aria-label="Feeds">
 			{
 				feeds.map((item) => (
-					<a class:list={[{ active: path.includes(item.match) || (item.match === '/digest' && (path.endsWith('/awesam/') || path.endsWith('/awesam'))) }]} href={item.href}>
+					<a class:list={[{ active: path.includes(item.match) || (item.match === '/digest' && (path === '/' || path.endsWith('/digest/') || path.endsWith('/digest'))) }]} href={item.href}>
 						{item.label}
 					</a>
 				))

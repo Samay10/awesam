@@ -7,7 +7,7 @@ loadDotenv();
 
 function enrichStories() {
 	return {
-		name: 'awesam-enrich',
+		name: 'prodigy-enrich',
 		hooks: {
 			'astro:config:setup': async ({ command }) => {
 				if (command === 'build' || command === 'dev') {
@@ -24,8 +24,8 @@ function enrichStories() {
 
 // https://astro.build/config
 export default defineConfig({
-	site: 'https://samay10.github.io',
-	base: '/awesam/',
+	site: 'https://www.prodigy.org.in',
+	base: '/',
 	integrations: [enrichStories()],
 	vite: {
 		plugins: [tailwindcss()],
