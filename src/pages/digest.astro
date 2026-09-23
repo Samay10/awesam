@@ -1,4 +1,8 @@
 ---
+/**
+ * Legacy /digest path — same page as `/`, no client hop.
+ * Kept so old links keep working while home is served at the root.
+ */
 import BaseLayout from '../layouts/BaseLayout.astro';
 import DigestCard from '../components/DigestCard.astro';
 import UmeRule from '../components/UmeRule.astro';
@@ -10,15 +14,13 @@ const digestBands = await buildLiveDigestBands();
 
 <BaseLayout
 	title={`${site.name} — The Technical Digest`}
-	description="Notes on systems architecture, mathematical precision, foundational AI research, and programming craft."
+	description={site.tagline}
 >
 	<div class="canvas container-page">
 		<header class="mast">
 			<h1>The Technical Digest</h1>
 			<UmeRule />
-			<p class="lede">
-				Notes on systems architecture, mathematical precision, foundational AI research, and programming craft.
-			</p>
+			<p class="lede">{site.tagline}</p>
 		</header>
 
 		{

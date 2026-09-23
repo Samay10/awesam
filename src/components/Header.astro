@@ -5,17 +5,23 @@ const base = import.meta.env.BASE_URL;
 const path = Astro.url.pathname;
 
 const feeds = [
-	{ label: 'Digest', href: `${base}digest/`, match: '/digest' },
+	{ label: 'Digest', href: base, match: 'digest-home' },
 	{ label: 'HN', href: `${base}sections/hn/`, match: '/sections/hn' },
 	{ label: 'X', href: `${base}sections/x/`, match: '/sections/x' },
 	{ label: 'GitHub', href: `${base}sections/github/`, match: '/sections/github' },
 	{ label: 'Papers', href: `${base}sections/papers/`, match: '/sections/papers' },
 ];
+
+const isHome =
+	path === '/' ||
+	path === base ||
+	path.endsWith('/digest/') ||
+	path.endsWith('/digest');
 ---
 
 <header class="topbar">
 	<div class="bar">
-		<a class="brand" href={`${base}digest/`}>
+		<a class="brand" href={base}>
 			<span class="brand-row">
 				<span class="name">{site.name}</span>
 				<span class="dot" aria-hidden="true"></span>
@@ -26,7 +32,17 @@ const feeds = [
 		<nav class="segment" aria-label="Feeds">
 			{
 				feeds.map((item) => (
-					<a class:list={[{ active: path.includes(item.match) || (item.match === '/digest' && (path === '/' || path.endsWith('/digest/') || path.endsWith('/digest'))) }]} href={item.href}>
+					<a
+						class:list={[
+							{
+								active:
+									item.match === 'digest-home'
+										? isHome
+										: path.includes(item.match),
+							},
+						]}
+						href={item.href}
+					>
 						{item.label}
 					</a>
 				))

@@ -28,7 +28,7 @@ const sectionHref =
 				? `${base}sections/github/`
 				: story.source === 'papers'
 					? `${base}sections/papers/`
-					: `${base}digest/`;
+					: `${base}`;
 const title = toPlainText(story.title);
 const dek = toPlainText(story.whyRead);
 const paragraphs = story.paragraphs.map((paragraph) => toPlainText(paragraph)).filter(Boolean);
