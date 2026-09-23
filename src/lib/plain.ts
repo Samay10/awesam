@@ -64,3 +64,30 @@ export function clip(text: string, max: number) {
 	const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf(' '));
 	return `${(stop > max * 0.6 ? cut.slice(0, stop) : cut).trim()}…`;
 }
+
+/**
+ * Card / list headline that fits without a trailing ellipsis.
+ * Prefers cutting on punctuation or a word boundary.
+ */
+export function fitHeadline(text: string, max = 72) {
+	const next = toPlainText(text)
+		.replace(/[.…]+$/u, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	if (next.length <= max) return next;
+
+	const window = next.slice(0, max + 1);
+	const marks = [': ', ' — ', ' – ', ' - ', '. ', '? ', '! ', '; ', ', '];
+	let breakAt = -1;
+	for (const mark of marks) {
+		const at = window.lastIndexOf(mark);
+		if (at > max * 0.4) breakAt = Math.max(breakAt, at);
+	}
+	if (breakAt < 0) breakAt = window.lastIndexOf(' ');
+	if (breakAt < max * 0.35) breakAt = max;
+
+	return window
+		.slice(0, breakAt)
+		.replace(/[,:;.\-–—/?!]+$/u, '')
+		.trim();
+}

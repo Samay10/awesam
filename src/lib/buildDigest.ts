@@ -2,9 +2,16 @@ import type { DigestBand, DigestCard, DigestSource } from '../data/digest';
 import { digestBands as placeholderBands } from '../data/digest';
 import { loadCatalog, type Story } from './catalog';
 import type { FeedItem } from './feeds';
-import { toPlainText } from './plain';
+import { fitHeadline, toPlainText } from './plain';
 
 export const DIGEST_PLAN = [2, 2, 3, 3] as const;
+
+function cardTitleMax(size: DigestCard['size'], source?: DigestSource) {
+	if (source === 'x') return 56;
+	if (size === 'dense') return 54;
+	if (size === 'deep') return 68;
+	return 72;
+}
 
 export function sizeForBand(index: number): DigestCard['size'] {
 	if (index === 0) return 'lead';
@@ -23,7 +30,7 @@ export function storyToCard(story: Story, size: DigestCard['size']): DigestCard 
 		source: story.source,
 		badge: story.badge,
 		meta: story.meta,
-		title: toPlainText(story.title),
+		title: fitHeadline(story.title, cardTitleMax(size, story.source)),
 		abstract: toPlainText(story.lede),
 		href: readPath(story.id),
 		originalHref: story.originalHref,
@@ -48,7 +55,7 @@ export function feedToCard(item: FeedItem, source: DigestSource, size: DigestCar
 		source,
 		badge: item.source,
 		meta: '',
-		title: item.title,
+		title: fitHeadline(item.title, cardTitleMax(size, source)),
 		abstract: item.summary ?? '',
 		href: readPath(item.id),
 		originalHref: item.href,
