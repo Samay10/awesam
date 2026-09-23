@@ -1,4 +1,4 @@
-import { clip, toPlainText } from './plain';
+import { clip, compressSocialHeadline, toPlainText } from './plain';
 
 export type FeedItem = {
 	id: string;
@@ -845,8 +845,8 @@ async function fetchHandleFeed(
 				const rawTitle = xmlTag(node, 'title') || xmlTag(node, 'description');
 				const full = cleanTitle(rawTitle.replace(/^RT\s+@?\w+:\s*/i, ''));
 				const body = feedBody(node, 900).replace(/^RT\s+@?\w+:\s*/i, '');
-				const title = full;
-				const summary = body.length >= full.length ? body : full;
+				const summary = (body.length >= full.length ? body : full) || full;
+				const title = compressSocialHeadline(full || summary, 68);
 				const href =
 					xmlTag(node, 'link') ||
 					node.match(/<link[^>]+href="([^"]+)"/i)?.[1] ||

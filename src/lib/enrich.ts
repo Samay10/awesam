@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { DigestSource } from '../data/digest';
 import { CATALOG_PATH, storySlug, type Story, type StoryCatalog } from './catalog';
 import { TEXT_MODEL, chatCompletion, hasTextKey } from './ai';
-import { toPlainText } from './plain';
+import { compressSocialHeadline, toPlainText } from './plain';
 import {
 	fetchHackerNews,
 	fetchHottestGithubToday,
@@ -362,19 +362,21 @@ function badgeFor(source: DigestSource, item: FeedItem) {
 	return 'Article';
 }
 
-function resolveStoryTitle(item: FeedItem) {
+function resolveStoryTitle(item: FeedItem, source?: DigestSource) {
 	const raw = toPlainText(item.title);
-	const truncated = /…|\.\.\.$/.test(raw);
 	const note = toPlainText(item.summary || '');
-	if (truncated && note.length > raw.replace(/[.…]+$/u, '').trim().length + 12) {
-		return note;
-	}
-	return raw.replace(/[.…]+$/u, '').trim() || note || 'Untitled';
+	const truncated = /…|\.\.\.$/.test(raw);
+	const base =
+		truncated && note.length > raw.replace(/[.…]+$/u, '').trim().length + 12
+			? note
+			: raw.replace(/[.…]+$/u, '').trim() || note || 'Untitled';
+	if (source === 'x') return compressSocialHeadline(base, 68);
+	return base;
 }
 
 async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story | null> {
 	const id = storySlug(item.id);
-	const title = resolveStoryTitle(item);
+	const title = resolveStoryTitle(item, source);
 	const cached = await readCache(id);
 	const cacheOk =
 		cached?.version === PROMPT_VERSION &&

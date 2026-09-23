@@ -91,3 +91,16 @@ export function fitHeadline(text: string, max = 72) {
 		.replace(/[,:;.\-–—/?!]+$/u, '')
 		.trim();
 }
+
+/** X / social headlines: strip links & trailing handles, then compress. */
+export function compressSocialHeadline(text: string, max = 68) {
+	let next = toPlainText(text)
+		.replace(/https?:\/\/\S+/gi, ' ')
+		.replace(/\b(?:bit\.ly|t\.co|goo\.gl|tinyurl\.com|lnkd\.in)\/\S+/gi, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+	next = next.replace(/(?:\s+[@#][\w.]+)+\s*$/g, '').trim();
+	next = next.replace(/\s*Read (?:the )?(?:blog|thread|post|more).*$/i, '').trim();
+	next = next.replace(/\s+/g, ' ').trim();
+	return fitHeadline(next || toPlainText(text), max);
+}
