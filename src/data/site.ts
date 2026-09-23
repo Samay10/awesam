@@ -1,6 +1,6 @@
 export const site = {
 	name: 'Prodigy',
-	tagline: 'Your daily dose of technical developments, foundational AI research and programming.',
+	tagline: 'Your daily dose of technical developments, AI research and programming.',
 	author: 'Samay Ashar',
 	email: 'sam10ashar@gmail.com',
 	portfolio: 'https://samay10.github.io/samay-portfolio/',
