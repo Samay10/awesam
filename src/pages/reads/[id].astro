@@ -3,7 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import UmeRule from '../../components/UmeRule.astro';
 import { allStories, loadCatalog, type Story } from '../../lib/catalog';
 import { site } from '../../data/site';
-import { compressSocialHeadline, toPlainText } from '../../lib/plain';
+import { readerProse, toPlainText } from '../../lib/plain';
 
 export async function getStaticPaths() {
 	const catalog = await loadCatalog();
@@ -29,13 +29,10 @@ const sectionHref =
 				: story.source === 'papers'
 					? `${base}sections/papers/`
 					: `${base}`;
-const title =
-	story.source === 'x'
-		? compressSocialHeadline(story.title, 68)
-		: toPlainText(story.title).replace(/[.…]+$/u, '').trim();
-const dek = toPlainText(story.whyRead);
-const paragraphs = story.paragraphs.map((paragraph) => toPlainText(paragraph)).filter(Boolean);
-const takeaway = toPlainText(story.takeaway ?? '');
+const title = readerProse(story.title);
+const dek = readerProse(story.whyRead);
+const paragraphs = story.paragraphs.map((paragraph) => readerProse(paragraph)).filter((paragraph) => paragraph.length > 40);
+const takeaway = readerProse(story.takeaway ?? '');
 const originalLabel =
 	story.source === 'github' ? 'View repository' : story.source === 'papers' ? 'Read the paper' : 'Read original';
 ---

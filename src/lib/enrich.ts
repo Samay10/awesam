@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { DigestSource } from '../data/digest';
 import { CATALOG_PATH, storySlug, type Story, type StoryCatalog } from './catalog';
 import { TEXT_MODEL, chatCompletion, hasTextKey } from './ai';
-import { compressSocialHeadline, toPlainText } from './plain';
+import { headlineFromPost, isCompleteTitle, readerProse, toPlainText } from './plain';
 import {
 	fetchHackerNews,
 	fetchHottestGithubToday,
@@ -16,7 +16,7 @@ import {
 } from './feeds';
 
 /** Bump to invalidate prior prompt caches. */
-const PROMPT_VERSION = 'v6-plain';
+const PROMPT_VERSION = 'v7-headline';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
 const TEXT_CONCURRENCY = 1;
@@ -49,20 +49,23 @@ Hard bans:
 - No AI slop: delve, landscape, robust, leverage, unlock, empower, game-changer, "in today's world", "it's important to note", "A closer look at", "on the wire", "source of truth", "Privacy advocates are sounding the alarm", "The broader implication is", "helps engineers gauge/understand".
 - Do not invent numbers, quotes, authors, benchmarks, or conclusions missing from the source notes.
 - Never copy the source verbatim. Rewrite.
-- Plain prose only inside JSON strings — no markdown, bullets, headings, numbered lists, HTML tags, comments, or named/numeric HTML entities.
+- No URLs, @handles, or em dashes. Use periods and commas.
+- Plain prose only inside JSON strings. No markdown, bullets, headings, numbered lists, or HTML.
 
 Structure:
-- paragraphs: at least 4 proper paragraphs for a 3–4 minute read (each paragraph several sentences; not one-liners).
-- End the piece by putting the single most important takeaway in "takeaway" — what a technically informed reader should remember.
-- "lede" is the card blurb (concrete stakes, not a teaser about "why you should read").
-- "whyRead" is one sharp factual subhead under the title — not a pitch.
+- "headline": a finished title, 8–16 words. It must read complete. Do not end on like, for, and, of, to, with, from, or the.
+- paragraphs: at least 4 proper paragraphs for a 3–4 minute read (each several sentences). X may be 3.
+- "takeaway": the one concrete thing to remember, written like the last line of a sharp note. Name the mechanism or number. Not a nudge to "check the original".
+- "lede" is the card blurb (concrete stakes).
+- "whyRead" is one sharp factual subhead under the title.
 
 Return ONLY valid JSON (no markdown fences):
 {
+  "headline": "finished title",
   "lede": "card blurb",
   "whyRead": "one sentence subhead",
   "paragraphs": ["para1", "para2", "para3", "para4"],
-  "takeaway": "single most important takeaway"
+  "takeaway": "concrete takeaway"
 }`;
 
 const DESK_BRIEF: Record<DigestSource, string> = {
@@ -71,9 +74,10 @@ Full 3–4 minute author note (≥4 meaty paragraphs, ~450–650 words).
 Lead with the tech or claim. Fold in the shape of the discussion (camps, caveats) without saying "the thread".
 Card lede: 40–65 words.`,
 	x: `Desk: X.
-Still author voice, but tighter: 3–4 short paragraphs (~220–320 words). Simple and to the point.
-Say what was claimed or shipped. No fluff.
-Card lede: 28–45 words.`,
+Write a finished headline that stands alone (8–14 words). Do not chop the tweet. No links, no @handles, no em dashes.
+Then 3 short paragraphs (~180–260 words) on what was actually claimed or shipped, with the numbers that matter.
+Takeaway: one concrete line a reader should remember, in the same voice. Not "posted by", not "check the thread".
+Card lede: 28–45 words, no URL.`,
 	press: `Desk: tech press (WIRED / TechCrunch / The Verge).
 Full 3–4 minute read (≥4 paragraphs). Lead with product/company/tech claim. Skeptical and concrete.
 Card lede: 40–65 words.`,
@@ -91,6 +95,7 @@ Argument + mechanism + stakes. ≥4 paragraphs. Card lede: 40–65 words.`,
 };
 
 type Draft = {
+	headline: string;
 	lede: string;
 	whyRead: string;
 	paragraphs: string[];
@@ -117,15 +122,17 @@ function minutesFor(paragraphs: string[], takeaway: string) {
 }
 
 const SLOP =
-	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article|PR)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note|Here is a summary|Privacy advocates are sounding|The broader implication|helps engineers (gauge|understand)|Understanding the .+ helps|What we can verify|Why it showed up here|ranking and relevance filters|listing description is thin|Skip the hype layer|desk fallback/i;
+	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article|PR)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note|Here is a summary|Privacy advocates are sounding|The broader implication|helps engineers (gauge|understand)|Understanding the .+ helps|What we can verify|Why it showed up here|ranking and relevance filters|listing description is thin|Skip the hype layer|desk fallback|Posted by @|claim stands or falls|If it touches your stack|Verify the concrete claim|check the original|open the post before/i;
 
 const MARKUP = /<!--|<\/[a-z][^>]*>|<[a-z][^>]{0,40}>/i;
 
 function cleanProse(text: string) {
-	return toPlainText(text)
-		.replace(/```[\s\S]*?```/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
+	return readerProse(
+		toPlainText(text)
+			.replace(/```[\s\S]*?```/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim(),
+	);
 }
 
 function looksDirty(text: string) {
@@ -177,6 +184,7 @@ function isUsableDraft(draft: Draft | null | undefined, title: string, source?: 
 	) {
 		return false;
 	}
+	if (source === 'x' && draft.headline && !isCompleteTitle(draft.headline)) return false;
 	const minLen = source === 'x' ? 40 : 60;
 	if (draft.paragraphs.some((paragraph) => paragraph.length < minLen)) return false;
 	return true;
@@ -211,32 +219,50 @@ function abstractDraft(item: FeedItem): Draft | null {
 	const paragraphs = chunks.slice(0, 5);
 	const lede = paragraphs[0].slice(0, 280);
 	return {
+		headline: title,
 		lede,
 		whyRead: cleanProse(item.meta || item.source),
 		paragraphs,
-		takeaway: `Remember the core claim in “${title}” and check the paper for method + evidence before you cite it.`,
+		takeaway: cleanProse(paragraphs[paragraphs.length - 1] || title),
 	};
 }
 
-/** X (and similar) — keep the post on the wire when Groq is rate-limited. */
+/** X fallback: the post itself, cleaned. No attribution filler. */
 function tweetDraft(item: FeedItem): Draft | null {
 	const note = cleanProse(item.summary || item.title);
 	if (note.length < 40) return null;
 
-	const cutAt = note.lastIndexOf(' ', 180);
-	const lede =
-		note.length > 200 ? note.slice(0, cutAt > 80 ? cutAt : 180).trim() : note;
-	const paragraphs = [
-		note,
-		`Posted by ${item.source}. The claim stands or falls on the original thread — check links, numbers, and whether anyone reproduced it.`,
-		`If it touches your stack, open the post before you treat it as decided. Replies often carry the caveats the first line leaves out.`,
-	].map(cleanProse);
+	const sentences = note
+		.split(/(?<=[.!?])\s+/)
+		.map((part) => part.trim())
+		.filter((part) => part.length > 30 && !/^media$/i.test(part));
+	if (!sentences.length) return null;
+
+	const chunks: string[] = [];
+	let bucket = '';
+	for (const sentence of sentences) {
+		bucket = bucket ? `${bucket} ${sentence}` : sentence;
+		if (bucket.length >= 140) {
+			chunks.push(bucket);
+			bucket = '';
+		}
+	}
+	if (bucket) chunks.push(bucket);
+	const paragraphs = chunks.slice(0, 4);
+	while (paragraphs.length < 3 && sentences.length > paragraphs.length) {
+		paragraphs.push(sentences[paragraphs.length]);
+	}
+	if (paragraphs.length < 2) return null;
+
+	const concrete = [...sentences].sort((a, b) => Number(/\d/.test(b)) - Number(/\d/.test(a)))[0];
+	const headline = headlineFromPost(note);
 
 	return {
-		lede: lede.slice(0, 280) || note.slice(0, 200),
-		whyRead: cleanProse(item.meta || item.source),
+		headline,
+		lede: paragraphs[0].slice(0, 280),
+		whyRead: cleanProse(item.meta || '').replace(/@/g, '') || 'From X',
 		paragraphs,
-		takeaway: 'Verify the concrete claim on the original post before you build or cite from it.',
+		takeaway: concrete,
 	};
 }
 
@@ -258,8 +284,9 @@ function extractJson(text: string): Draft | null {
 		const lede = cleanProse(String(parsed.lede ?? ''));
 		const whyRead = cleanProse(String(parsed.whyRead ?? ''));
 		const takeaway = cleanProse(String(parsed.takeaway ?? ''));
+		const headline = cleanProse(String(parsed.headline ?? ''));
 		if (!lede || paragraphs.length < 2 || !takeaway) return null;
-		return { lede, whyRead, paragraphs, takeaway };
+		return { headline, lede, whyRead, paragraphs, takeaway };
 	} catch {
 		return null;
 	}
@@ -370,7 +397,7 @@ function resolveStoryTitle(item: FeedItem, source?: DigestSource) {
 		truncated && note.length > raw.replace(/[.…]+$/u, '').trim().length + 12
 			? note
 			: raw.replace(/[.…]+$/u, '').trim() || note || 'Untitled';
-	if (source === 'x') return compressSocialHeadline(base, 68);
+	if (source === 'x') return headlineFromPost(`${item.summary || ''} ${item.title}`);
 	return base;
 }
 
@@ -379,13 +406,18 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 	const title = resolveStoryTitle(item, source);
 	const cached = await readCache(id);
 	const cacheOk =
-		cached?.version === PROMPT_VERSION &&
-		cached.title === title &&
-		isUsableDraft(cached.draft, title, source);
+		cached?.version === PROMPT_VERSION && isUsableDraft(cached.draft, cached.title, source);
 
 	let draft = cacheOk ? cached!.draft : await draftFromModel({ ...item, title }, source);
 	if (draft) {
+		const headline =
+			source === 'x'
+				? isCompleteTitle(draft.headline)
+					? cleanProse(draft.headline)
+					: headlineFromPost(item.summary || item.title)
+				: cleanProse(draft.headline || title);
 		draft = {
+			headline,
 			lede: cleanProse(draft.lede),
 			whyRead: cleanProse(draft.whyRead),
 			paragraphs: draft.paragraphs.map(cleanProse).filter((paragraph) => paragraph.length > 40),
@@ -404,9 +436,11 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		return null;
 	}
 
+	const publishedTitle = source === 'x' && draft.headline ? draft.headline : title;
+
 	await writeCache({
 		id,
-		title,
+		title: publishedTitle,
 		version: PROMPT_VERSION,
 		draft,
 	});
@@ -415,7 +449,7 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		id,
 		source,
 		badge: badgeFor(source, item),
-		title,
+		title: publishedTitle,
 		lede: draft.lede,
 		whyRead: draft.whyRead,
 		paragraphs: draft.paragraphs,

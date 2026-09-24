@@ -92,7 +92,7 @@ export function fitHeadline(text: string, max = 72) {
 		.trim();
 }
 
-/** X / social headlines: strip links & trailing handles, then compress. */
+/** X / social headlines: strip links and trailing handles, then compress. */
 export function compressSocialHeadline(text: string, max = 68) {
 	let next = toPlainText(text)
 		.replace(/https?:\/\/\S+/gi, ' ')
@@ -103,4 +103,63 @@ export function compressSocialHeadline(text: string, max = 68) {
 	next = next.replace(/\s*Read (?:the )?(?:blog|thread|post|more).*$/i, '').trim();
 	next = next.replace(/\s+/g, ' ').trim();
 	return fitHeadline(next || toPlainText(text), max);
+}
+
+const DANGLING_TITLE = /\b(like|for|and|or|of|to|with|from|the|a|an|in|on|that|which|who|as|by|via|into)\s*$/i;
+
+/** Published prose: no links, handles-as-attribution, or em dashes. */
+export function readerProse(text: string) {
+	return toPlainText(text)
+		.replace(/https?:\/\/\S+/gi, '')
+		.replace(/\b(?:bit\.ly|t\.co|goo\.gl|tinyurl\.com)\/\S+/gi, '')
+		.replace(/[—–]/g, ', ')
+		.replace(/\s*@[\w.]+\s*/g, ' ')
+		.replace(/\bRead more:?\s*/gi, '')
+		.replace(/\bMedia\s*$/i, '')
+		.replace(/\s+/g, ' ')
+		.replace(/\s+,/g, ',')
+		.replace(/,{2,}/g, ',')
+		.trim();
+}
+
+export function isCompleteTitle(text: string) {
+	const next = readerProse(text);
+	if (next.length < 24 || next.length > 140) return false;
+	if (DANGLING_TITLE.test(next)) return false;
+	if (/https?:|@\w|bit\.ly|t\.co/i.test(next)) return false;
+	return true;
+}
+
+/** A finished X title from the post itself when the model is unavailable. */
+export function headlineFromPost(text: string) {
+	const clean = readerProse(text).replace(/\s*Media\s*$/i, '').trim();
+	const sentences = clean
+		.split(/(?<=[.!?])\s+/)
+		.map((part) =>
+			part
+				.replace(/^In our latest [^.]{0,80}, we share how /i, '')
+				.replace(/^We['’]re open sourcing.+/i, '')
+				.trim(),
+		)
+		.filter((part) => part.length > 36);
+
+	const ranked = [...sentences].sort((a, b) => headlineScore(b) - headlineScore(a));
+	let pick = ranked[0] || clean;
+	pick = pick.replace(/[.!?]\s*$/, '').trim();
+	if (pick.length > 118) {
+		const comma = pick.slice(0, 118).lastIndexOf(',');
+		if (comma > 48 && !DANGLING_TITLE.test(pick.slice(0, comma))) pick = pick.slice(0, comma).trim();
+	}
+	if (!pick) return 'Untitled';
+	return pick.charAt(0).toUpperCase() + pick.slice(1);
+}
+
+function headlineScore(sentence: string) {
+	let score = 0;
+	if (/\d/.test(sentence)) score += 4;
+	if (/faster|model|gpu|inference|open[- ]source|latency|kernel/i.test(sentence)) score += 2;
+	if (sentence.length <= 120) score += 2;
+	if (/^in our latest/i.test(sentence)) score -= 3;
+	if (DANGLING_TITLE.test(sentence.replace(/[.!?]$/, ''))) score -= 4;
+	return score;
 }
