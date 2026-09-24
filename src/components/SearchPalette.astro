@@ -11,7 +11,7 @@ const index = allStories(catalog).map((story) => ({
 	badge: story.badge,
 	source: story.sourceLabel,
 	meta: story.meta,
-	href: readPath(story.id),
+	href: story.source === 'x' ? story.originalHref : readPath(story.id),
 }));
 ---
 

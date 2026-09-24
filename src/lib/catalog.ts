@@ -11,6 +11,7 @@ export type Story = {
 	whyRead: string;
 	paragraphs: string[];
 	takeaway?: string;
+	blurb?: string;
 	originalHref: string;
 	image: string | null;
 	stats: string[];

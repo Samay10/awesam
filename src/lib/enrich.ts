@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { DigestSource } from '../data/digest';
 import { CATALOG_PATH, storySlug, type Story, type StoryCatalog } from './catalog';
 import { TEXT_MODEL, chatCompletion, hasTextKey } from './ai';
-import { headlineFromPost, isCompleteTitle, readerProse, toPlainText } from './plain';
+import { headlineFromPost, isCompleteTitle, readerProse, toPlainText, xCardBlurb } from './plain';
 import {
 	fetchHackerNews,
 	fetchHottestGithubToday,
@@ -454,6 +454,7 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 		whyRead: draft.whyRead,
 		paragraphs: draft.paragraphs,
 		takeaway: draft.takeaway,
+		blurb: source === 'x' ? xCardBlurb(publishedTitle, item.summary || item.title) : undefined,
 		originalHref: item.href,
 		image: null,
 		stats: statsFromMeta(item.meta),

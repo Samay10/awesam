@@ -113,7 +113,7 @@ export function readerProse(text: string) {
 		.replace(/https?:\/\/\S+/gi, '')
 		.replace(/\b(?:bit\.ly|t\.co|goo\.gl|tinyurl\.com)\/\S+/gi, '')
 		.replace(/[—–]/g, ', ')
-		.replace(/\s*@[\w.]+\s*/g, ' ')
+		.replace(/@([\w.]+)/g, '$1')
 		.replace(/\bRead more:?\s*/gi, '')
 		.replace(/\bMedia\s*$/i, '')
 		.replace(/\s+/g, ' ')
@@ -131,6 +131,16 @@ export function isCompleteTitle(text: string) {
 }
 
 /** A finished X title from the post itself when the model is unavailable. */
+function headlineScore(sentence: string) {
+	let score = 0;
+	if (/\d/.test(sentence)) score += 4;
+	if (/faster|model|gpu|inference|open[- ]source|latency|kernel/i.test(sentence)) score += 2;
+	if (sentence.length <= 120) score += 2;
+	if (/^in our latest/i.test(sentence)) score -= 3;
+	if (DANGLING_TITLE.test(sentence.replace(/[.!?]$/, ''))) score -= 4;
+	return score;
+}
+
 export function headlineFromPost(text: string) {
 	const clean = readerProse(text).replace(/\s*Media\s*$/i, '').trim();
 	const sentences = clean
@@ -154,12 +164,34 @@ export function headlineFromPost(text: string) {
 	return pick.charAt(0).toUpperCase() + pick.slice(1);
 }
 
-function headlineScore(sentence: string) {
-	let score = 0;
-	if (/\d/.test(sentence)) score += 4;
-	if (/faster|model|gpu|inference|open[- ]source|latency|kernel/i.test(sentence)) score += 2;
-	if (sentence.length <= 120) score += 2;
-	if (/^in our latest/i.test(sentence)) score -= 3;
-	if (DANGLING_TITLE.test(sentence.replace(/[.!?]$/, ''))) score -= 4;
-	return score;
+/** Short, finished blurb for an X card. Never cuts mid-sentence. */
+export function xCardBlurb(title: string, body: string) {
+	const clean = toPlainText(body)
+		.replace(/https?:\/\/\S+/gi, '')
+		.replace(/\b(?:bit\.ly|t\.co|goo\.gl|tinyurl\.com)\/\S+/gi, '')
+		.replace(/@([\w.]+)/g, '$1')
+		.replace(/[—–]/g, ', ')
+		.replace(/\s*Read (?:the )?(?:blog|thread|post|more)\b.*/i, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	const head = toPlainText(title)
+		.replace(/@([\w.]+)/g, '$1')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.toLowerCase();
+	const sentences = clean
+		.split(/(?<=[.!?])\s+/)
+		.map((part) => part.trim())
+		.filter((part) => part.length > 24 && !/^media$/i.test(part));
+	const rest = sentences.filter((sentence) => {
+		const normalized = sentence.toLowerCase();
+		if (!head) return true;
+		if (normalized === head) return false;
+		if (head.startsWith(normalized.slice(0, 48))) return false;
+		if (normalized.startsWith(head.slice(0, Math.min(48, head.length)))) return false;
+		return true;
+	});
+	const text = (rest.length ? rest : sentences)[0]?.trim() ?? '';
+	if (!text || !/[.!?]$/.test(text)) return '';
+	return text;
 }

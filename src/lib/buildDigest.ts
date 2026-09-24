@@ -2,7 +2,7 @@ import type { DigestBand, DigestCard, DigestSource } from '../data/digest';
 import { digestBands as placeholderBands } from '../data/digest';
 import { loadCatalog, type Story } from './catalog';
 import type { FeedItem } from './feeds';
-import { fitHeadline, readerProse, toPlainText } from './plain';
+import { fitHeadline, readerProse, xCardBlurb } from './plain';
 
 export const DIGEST_PLAN = [2, 2, 3, 3] as const;
 
@@ -31,11 +31,14 @@ export function storyToCard(story: Story, size: DigestCard['size']): DigestCard 
 		badge: story.badge,
 		meta: story.meta,
 		title: story.source === 'x' ? readerProse(story.title) : fitHeadline(story.title, cardTitleMax(size, story.source)),
-		abstract: readerProse(story.lede),
-		href: readPath(story.id),
+		abstract:
+			story.source === 'x'
+				? story.blurb || xCardBlurb(story.title, [story.lede, ...story.paragraphs].filter(Boolean).join(' '))
+				: readerProse(story.lede),
+		href: story.source === 'x' ? story.originalHref : readPath(story.id),
 		originalHref: story.originalHref,
 		image: null,
-		cta: 'Read',
+		cta: story.source === 'x' ? 'Open' : 'Read',
 		stats: story.stats,
 		size,
 	};

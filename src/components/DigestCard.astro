@@ -8,14 +8,16 @@ interface Props {
 const { card } = Astro.props;
 const tagClass = `tag-${card.source}`;
 const spanClass = card.size === 'dense' ? 'dense' : 'wide';
+const external = card.source === 'x';
+const href = external ? card.originalHref || card.href : card.href;
 ---
 
 <article class:list={['card', spanClass]} data-source={card.source} data-id={card.id}>
-	<a class="hit" href={card.href}>
+	<a class="hit" href={href} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined}>
 		<div class="top">
 			<div class="meta-row">
 				<span class:list={['badge', tagClass]}>{card.badge}</span>
-				{card.meta && <span class="when">{card.meta}</span>}
+				{card.meta && !external && <span class="when">{card.meta}</span>}
 			</div>
 			<h3 class="title">{card.title}</h3>
 			{card.abstract && <p class="abstract">{card.abstract}</p>}
@@ -26,7 +28,7 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		<div class="stats">
 			{card.stats.map((stat) => <span>{stat}</span>)}
 		</div>
-		<a class="cta" href={card.href}>
+		<a class="cta" href={href} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined}>
 			{card.cta}
 			<span aria-hidden="true">→</span>
 		</a>
@@ -151,6 +153,9 @@ const spanClass = card.size === 'dense' ? 'dense' : 'wide';
 		color: var(--color-on-surface-variant);
 		line-height: 1.55;
 		font-size: 0.875rem;
+	}
+
+	.card:not([data-source='x']) .abstract {
 		display: -webkit-box;
 		overflow: hidden;
 		-webkit-box-orient: vertical;

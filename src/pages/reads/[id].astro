@@ -38,6 +38,11 @@ const originalLabel =
 ---
 
 <BaseLayout title={`${title} · ${site.name}`} description={toPlainText(story.lede)}>
+	{story.source === 'x' && (
+		<script is:inline define:vars={{ href: story.originalHref }}>
+			location.replace(href);
+		</script>
+	)}
 	<article class="read">
 		<div class="container-page">
 			<a class="back ink-link" href={sectionHref}>← {story.badge}</a>
@@ -50,27 +55,38 @@ const originalLabel =
 				</p>
 				<h1>{title}</h1>
 				<UmeRule />
-				{dek && <p class="dek">{dek}</p>}
+				{story.source !== 'x' && dek && <p class="dek">{dek}</p>}
 			</header>
 
-			<div class="body measure">
-				{paragraphs.map((paragraph) => <p>{paragraph}</p>)}
-				{takeaway && (
-					<p class="takeaway">
-						<span class="takeaway-label">Takeaway</span>
-						{takeaway}
-					</p>
-				)}
-			</div>
+			{story.source !== 'x' && (
+				<div class="body measure">
+					{paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+					{takeaway && (
+						<p class="takeaway">
+							<span class="takeaway-label">Takeaway</span>
+							{takeaway}
+						</p>
+					)}
+				</div>
+			)}
 
-			<footer class="origin">
-				<p>
-					Prodigy briefing — continue on the original for source material, discussion, and updates.
-				</p>
-				<a class="origin-link" href={story.originalHref} target="_blank" rel="noreferrer">
-					{originalLabel} ↗
-				</a>
-			</footer>
+			{story.source === 'x' ? (
+				<footer class="origin">
+					<p>Opening the post on X.</p>
+					<a class="origin-link" href={story.originalHref} target="_blank" rel="noreferrer">
+						View on X ↗
+					</a>
+				</footer>
+			) : (
+				<footer class="origin">
+					<p>
+						Prodigy briefing — continue on the original for source material, discussion, and updates.
+					</p>
+					<a class="origin-link" href={story.originalHref} target="_blank" rel="noreferrer">
+						{originalLabel} ↗
+					</a>
+				</footer>
+			)}
 		</div>
 	</article>
 </BaseLayout>
