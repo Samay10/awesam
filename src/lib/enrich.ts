@@ -17,6 +17,7 @@ import {
 
 /** Bump to invalidate prior prompt caches. */
 const PROMPT_VERSION = 'v7-headline';
+const PAPER_PROMPT_VERSION = 'v8-paper';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
 const TEXT_CONCURRENCY = 1;
@@ -88,8 +89,23 @@ Card lede: 35–55 words.`,
 What it does, architecture/mechanism, who it's for, why stars are moving. ≥4 paragraphs.
 Card lede: 35–55 words.`,
 	papers: `Desk: research paper.
-Problem → approach → evidence → why a practitioner should care. Faithful to the abstract. ≥4 paragraphs.
-Card lede: 40–65 words.`,
+You have the title and the abstract, and nothing else. Write a short technical briefing a researcher would trust. Ignore the 3–4 minute / four-paragraph target for this desk.
+
+Exactly three paragraphs, in this order:
+1. Objective. The problem and what the authors set out to do. Name the setting (task, data, constraint) when the abstract does.
+2. Approach. The method in brief: what they introduce or change, in concrete terms.
+3. Result. What the paper shows or claims. Use only comparisons, datasets, and numbers that appear in the abstract. If the abstract states no number, do not invent one.
+
+"whyRead": one sentence stating the objective.
+"lede": two complete sentences for the card, objective then result. About 40–70 words.
+"takeaway": one sentence stating what the paper shows. Not a repeat of paragraph 1.
+
+Accuracy rules:
+- If the abstract does not say it, leave it out. Do not infer benchmarks, ablations, or limitations.
+- Do not quote the abstract. Rewrite it.
+- Do not repeat a sentence across paragraphs.
+- Every sentence must finish. Never end on an ellipsis or a chopped clause.
+- No venue name-dropping, no "this paper explores", no "the authors propose a novel".`,
 	articles: `Desk: article.
 Argument + mechanism + stakes. ≥4 paragraphs. Card lede: 40–65 words.`,
 };
@@ -155,11 +171,32 @@ function normalizeParagraphs(raw: unknown): string[] {
 }
 
 function minParagraphs(source: DigestSource) {
-	return source === 'x' ? 3 : 4;
+	if (source === 'x' || source === 'papers') return 3;
+	return 4;
 }
 
 function minWords(source: DigestSource) {
-	return source === 'x' ? 140 : 280;
+	if (source === 'x' || source === 'papers') return 140;
+	return 280;
+}
+
+function cacheVersion(source: DigestSource) {
+	return source === 'papers' ? PAPER_PROMPT_VERSION : PROMPT_VERSION;
+}
+
+function paperDraftBroken(draft: Draft) {
+	const blob = [draft.lede, draft.whyRead, draft.takeaway, ...draft.paragraphs].join('\n');
+	if (/…|\.{3}/.test(blob)) return true;
+	const seen = new Set<string>();
+	for (const paragraph of draft.paragraphs) {
+		for (const sentence of paragraph.split(/(?<=[.!?])\s+/)) {
+			const key = sentence.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 72);
+			if (key.length < 36) continue;
+			if (seen.has(key)) return true;
+			seen.add(key);
+		}
+	}
+	return false;
 }
 
 function isWeakDraft(draft: Draft | null | undefined, title: string, source: DigestSource) {
@@ -170,6 +207,7 @@ function isWeakDraft(draft: Draft | null | undefined, title: string, source: Dig
 	if (draft.lede.includes(title) && draft.lede.length < title.length + 40) return true;
 	const words = [...draft.paragraphs, draft.takeaway].join(' ').split(/\s+/).filter(Boolean).length;
 	if (words < minWords(source)) return true;
+	if (source === 'papers' && paperDraftBroken(draft)) return true;
 	return false;
 }
 
@@ -185,45 +223,53 @@ function isUsableDraft(draft: Draft | null | undefined, title: string, source?: 
 		return false;
 	}
 	if (source === 'x' && draft.headline && !isCompleteTitle(draft.headline)) return false;
+	if (source === 'papers' && paperDraftBroken(draft)) return false;
 	const minLen = source === 'x' ? 40 : 60;
 	if (draft.paragraphs.some((paragraph) => paragraph.length < minLen)) return false;
 	return true;
 }
 
-/** When the model blanks on a paper, rewrite the abstract into a short note — never invent. */
+/** When the model blanks on a paper, keep complete abstract sentences. Never repeat or chop them. */
 function abstractDraft(item: FeedItem): Draft | null {
-	const note = cleanProse(item.summary || '');
+	const note = cleanProse(item.summary || '')
+		.replace(/…/g, ' ')
+		.replace(/\.{3,}/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
 	const title = cleanProse(item.title);
-	if (note.length < 160) return null;
-
 	const sentences = note
 		.split(/(?<=[.!?])\s+/)
 		.map((part) => part.trim())
-		.filter((part) => part.length > 20);
-	if (sentences.length < 2) return null;
-
-	const chunks: string[] = [];
-	let bucket = '';
+		.filter((part) => part.length > 40 && /[.!?]$/.test(part));
+	const unique: string[] = [];
+	const seen = new Set<string>();
 	for (const sentence of sentences) {
-		bucket = bucket ? `${bucket} ${sentence}` : sentence;
-		if (bucket.length >= 160) {
-			chunks.push(bucket);
-			bucket = '';
-		}
+		const key = sentence.toLowerCase().slice(0, 72);
+		if (seen.has(key)) continue;
+		seen.add(key);
+		unique.push(sentence);
 	}
-	if (bucket) chunks.push(bucket);
-	while (chunks.length < 4 && sentences.length) {
-		chunks.push(sentences[chunks.length % sentences.length]);
-	}
+	if (unique.length < 2) return null;
 
-	const paragraphs = chunks.slice(0, 5);
-	const lede = paragraphs[0].slice(0, 280);
+	const third = Math.max(1, Math.ceil(unique.length / 3));
+	const paragraphs = [unique.slice(0, third), unique.slice(third, third * 2), unique.slice(third * 2)]
+		.filter((group) => group.length > 0)
+		.map((group) => group.join(' '));
+	if (paragraphs.length < 2) return null;
+
+	const result =
+		[...unique]
+			.reverse()
+			.find((sentence) =>
+				/\d|outperform|improv|reduc|achiev|show|demonstrat|prove|better|accurate|state of the art/i.test(sentence),
+			) || unique[unique.length - 1];
+
 	return {
 		headline: title,
-		lede,
-		whyRead: cleanProse(item.meta || item.source),
+		lede: unique.slice(0, 2).join(' '),
+		whyRead: unique[0],
 		paragraphs,
-		takeaway: cleanProse(paragraphs[paragraphs.length - 1] || title),
+		takeaway: result,
 	};
 }
 
@@ -319,7 +365,9 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 		item.meta ? `Signals: ${item.meta}` : '',
 		`URL (orientation only): ${item.href}`,
 		DESK_BRIEF[source],
-		`Minimum ${minParagraphs(source)} proper paragraphs. End with a concrete takeaway. Author voice — not a summary bot.`,
+		source === 'papers'
+			? 'Three paragraphs only: objective, approach, result. Stay inside the abstract.'
+			: `Minimum ${minParagraphs(source)} proper paragraphs. End with a concrete takeaway. Author voice — not a summary bot.`,
 	]
 		.filter(Boolean)
 		.join('\n\n');
@@ -328,7 +376,8 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft | null> {
 	if (textBudgetExhausted) return null;
 
-	const maxTokens = source === 'x' ? 1200 : 2400;
+	const maxTokens = source === 'x' ? 1200 : source === 'papers' ? 1400 : 2400;
+	const temperature = source === 'papers' ? 0.3 : 0.55;
 	let salvage: Draft | null = null;
 	try {
 		const raw = await chatCompletion(
@@ -336,22 +385,26 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 				{ role: 'system', content: SHARED_RULES },
 				{ role: 'user', content: buildUserPrompt(item, source) },
 			],
-			{ maxTokens, temperature: 0.55, json: true },
+			{ maxTokens, temperature, json: true },
 		);
 		const parsed = extractJson(raw);
 		if (parsed && isUsableDraft(parsed, item.title, source)) salvage = parsed;
 		if (parsed && !isWeakDraft(parsed, item.title, source)) return parsed;
 
 		console.warn(`[enrich] weak draft for ${item.id}; retrying once`);
+		const retryNote =
+			source === 'papers'
+				? 'Previous draft was inaccurate, repetitive, or padded. Rewrite from the abstract only. Three paragraphs: objective, method, then what the paper shows. No ellipsis. No invented numbers or datasets.'
+				: `Previous draft was too short, too meta, or AI-slop. Rewrite as a dense 3–4 minute technical note with ≥${minParagraphs(source)} real paragraphs and a sharp takeaway. Lead with the mechanism.`;
 		const retry = await chatCompletion(
 			[
 				{ role: 'system', content: SHARED_RULES },
 				{
 					role: 'user',
-					content: `${buildUserPrompt(item, source)}\n\nPrevious draft was too short, too meta, or AI-slop. Rewrite as a dense 3–4 minute technical note with ≥${minParagraphs(source)} real paragraphs and a sharp takeaway. Lead with the mechanism.`,
+					content: `${buildUserPrompt(item, source)}\n\n${retryNote}`,
 				},
 			],
-			{ maxTokens, temperature: 0.65, json: true },
+			{ maxTokens, temperature: source === 'papers' ? 0.2 : 0.65, json: true },
 		);
 		const second = extractJson(retry);
 		if (second && !isWeakDraft(second, item.title, source)) return second;
@@ -406,7 +459,7 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 	const title = resolveStoryTitle(item, source);
 	const cached = await readCache(id);
 	const cacheOk =
-		cached?.version === PROMPT_VERSION && isUsableDraft(cached.draft, cached.title, source);
+		cached?.version === cacheVersion(source) && isUsableDraft(cached.draft, cached.title, source);
 
 	let draft = cacheOk ? cached!.draft : await draftFromModel({ ...item, title }, source);
 	if (draft) {
@@ -441,7 +494,7 @@ async function enrichItem(item: FeedItem, source: DigestSource): Promise<Story |
 	await writeCache({
 		id,
 		title: publishedTitle,
-		version: PROMPT_VERSION,
+		version: cacheVersion(source),
 		draft,
 	});
 

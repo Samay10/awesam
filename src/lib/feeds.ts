@@ -134,6 +134,16 @@ function clean(text: string, max = 220) {
 	return clip(text, max);
 }
 
+/** Full paper abstract. Cuts on a sentence boundary and never leaves an ellipsis. */
+function paperAbstract(text: string, max = 4500) {
+	const next = toPlainText(text).replace(/\s+/g, ' ').trim();
+	if (next.length <= max) return next;
+	const cut = next.slice(0, max);
+	const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
+	if (stop > 240) return cut.slice(0, stop + 1).trim();
+	return cut.trim();
+}
+
 /** Full item title — never appends ellipsis. Truncation is for cards only. */
 function cleanTitle(text: string) {
 	return toPlainText(text).replace(/\s+/g, ' ').trim();
@@ -616,7 +626,7 @@ function mapOpenAlexWork(work: OpenAlexWork, fallbackLabel: string, baseWeight: 
 		href,
 		source: label,
 		meta: [authors || label, date, cites ? `${cites} cites` : ''].filter(Boolean).join(' · '),
-		summary: abstract ? clean(abstract, 200) : undefined,
+		summary: abstract ? paperAbstract(abstract) : undefined,
 		score,
 	};
 }
@@ -688,7 +698,7 @@ async function fetchArxivPapers(limit: number): Promise<FeedItem[]> {
 				href,
 				source: venue ? `arXiv · ${venue.label}` : 'arXiv',
 				meta: [authors, date].filter(Boolean).join(' · '),
-				summary: summary ? clean(summary, 200) : undefined,
+				summary: summary ? paperAbstract(summary) : undefined,
 				score,
 			} satisfies FeedItem;
 		})
