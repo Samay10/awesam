@@ -16,98 +16,63 @@ import {
 } from './feeds';
 
 /** Bump to invalidate prior prompt caches. */
-const PROMPT_VERSION = 'v7-headline';
-const PAPER_PROMPT_VERSION = 'v8-paper';
+const PROMPT_VERSION = 'v9-natural';
+const PAPER_PROMPT_VERSION = 'v9-paper';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
 const TEXT_CONCURRENCY = 1;
 
-const SHARED_RULES = `You write for Prodigy — a technical digest for young engineers, builders, and researchers.
+const SHARED_RULES = `You write short technical notes for Prodigy, a daily digest read by young engineers and researchers.
 
-Read the source carefully and write a concise technical digest of it.
+Write like a senior engineer telling a friend what they just read: plain words, specific facts, no performance. The reader should learn the thing in under two minutes and want to keep reading.
 
-The output should feel like it was written by a technically experienced engineer/researcher who actually understood the material — not like an AI-generated summary.
+How a good note reads:
+- Paragraph 1 states what happened and the most striking fact or number, in the first sentence. No scene-setting.
+- Paragraph 2 explains how it works or why it happened, using only what the source says.
+- Paragraph 3 says what changes for someone building software or doing research, and names one real limit or open question if the source gives one.
+- Each paragraph is 2 or 3 sentences. Short sentences are fine. Mix lengths.
+- Prefer concrete nouns and verbs over abstractions. "Cuts output tokens by 40 percent" beats "improves efficiency significantly".
 
-Focus on:
-- What actually happened or was built
-- The important technical mechanism, architecture, or idea
-- Why it matters to engineers/researchers
-- The key tradeoffs, limitations, or implications
-- Any numbers, benchmarks, implementation details, or concrete evidence that matter
+Accuracy comes first:
+- Use only facts in the source notes. If the source does not explain the mechanism, do not describe one. Say less instead.
+- Never invent numbers, pipelines, internal tools, quotes, or motives.
 
-Skip generic introductions, obvious context, marketing language, and filler.
+Do not write like this:
+- Moralizing or big-picture wrap-ups: "underscores", "highlights the", "forces a reckoning", "raises questions", "serves as a reminder", "in an era of".
+- Addressing groups: "For engineers and policy designers", "For developers".
+- Filler words: delve, landscape, robust, leverage, unlock, empower, seamless, game-changer, crucial, pivotal, tangible, notably.
+- Balanced-essay padding: "speed comes at the cost of", "on one hand", "while X, Y".
+- Meta comments: "This post", "This article", "The thread", "Here is a summary".
+- No URLs, @handles, em dashes, hyphen-joined word chains, markdown, bullets, or HTML.
 
-Write it as a 3–4 minute technical read: dense, clear, and interesting, but concise. Explain the important parts rather than merely listing them.
-
-Use precise technical language where appropriate. Assume the reader is technically literate, so don't over-explain basic concepts.
-
-The writing should have a confident editorial voice, with natural variation in sentence length and structure. It should read like a sharp technical note from an engineer — not like "Here is a summary of the article."
-
-Informal is fine. Sound like someone who ships code.
-
-Hard bans:
-- Never meta-comment on the source ("This post…", "This tweet…", "This PR…", "This HN thread…", "sounds like…", "reads as…", "Here is a summary…").
-- No AI slop: delve, landscape, robust, leverage, unlock, empower, game-changer, "in today's world", "it's important to note", "A closer look at", "on the wire", "source of truth", "Privacy advocates are sounding the alarm", "The broader implication is", "helps engineers gauge/understand".
-- Do not invent numbers, quotes, authors, benchmarks, or conclusions missing from the source notes.
-- Never copy the source verbatim. Rewrite.
-- No URLs, @handles, or em dashes. Use periods and commas.
-- Plain prose only inside JSON strings. No markdown, bullets, headings, numbered lists, or HTML.
-
-Structure:
-- "headline": a finished title, 8–16 words. It must read complete. Do not end on like, for, and, of, to, with, from, or the.
-- paragraphs: at least 4 proper paragraphs for a 3–4 minute read (each several sentences). X may be 3.
-- "takeaway": the one concrete thing to remember, written like the last line of a sharp note. Name the mechanism or number. Not a nudge to "check the original".
-- "lede" is the card blurb (concrete stakes).
-- "whyRead" is one sharp factual subhead under the title.
+Fields:
+- "headline": a complete title, 8 to 14 words. Do not end on a preposition or article.
+- "whyRead": one sentence on what the reader will learn.
+- "lede": the card blurb, 1 or 2 sentences with the key fact.
+- "paragraphs": exactly 3, as described above.
+- "takeaway": one plain sentence, under 25 words, stating the lesson. Not a summary of paragraph 1.
 
 Return ONLY valid JSON (no markdown fences):
 {
   "headline": "finished title",
   "lede": "card blurb",
   "whyRead": "one sentence subhead",
-  "paragraphs": ["para1", "para2", "para3", "para4"],
+  "paragraphs": ["para1", "para2", "para3"],
   "takeaway": "concrete takeaway"
 }`;
 
 const DESK_BRIEF: Record<DigestSource, string> = {
-	hn: `Desk: Hacker News.
-Full 3–4 minute author note (≥4 meaty paragraphs, ~450–650 words).
-Lead with the tech or claim. Fold in the shape of the discussion (camps, caveats) without saying "the thread".
-Card lede: 40–65 words.`,
-	x: `Desk: X.
-Write a finished headline that stands alone (8–14 words). Do not chop the tweet. No links, no @handles, no em dashes.
-Then 3 short paragraphs (~180–260 words) on what was actually claimed or shipped, with the numbers that matter.
-Takeaway: one concrete line a reader should remember, in the same voice. Not "posted by", not "check the thread".
-Card lede: 28–45 words, no URL.`,
-	press: `Desk: tech press (WIRED / TechCrunch / The Verge).
-Full 3–4 minute read (≥4 paragraphs). Lead with product/company/tech claim. Skeptical and concrete.
-Card lede: 40–65 words.`,
-	reddit: `Desk: Reddit.
-Full 3–4 minute read (≥4 paragraphs) on the idea people are chewing on. Technical, a bit informal. Skip meme voice.
-Card lede: 35–55 words.`,
-	github: `Desk: rising GitHub repo.
-What it does, architecture/mechanism, who it's for, why stars are moving. ≥4 paragraphs.
-Card lede: 35–55 words.`,
-	papers: `Desk: research paper.
-You have the title and the abstract, and nothing else. Write a short technical briefing a researcher would trust. Ignore the 3–4 minute / four-paragraph target for this desk.
-
-Exactly three paragraphs, in this order:
-1. Objective. The problem and what the authors set out to do. Name the setting (task, data, constraint) when the abstract does.
-2. Approach. The method in brief: what they introduce or change, in concrete terms.
-3. Result. What the paper shows or claims. Use only comparisons, datasets, and numbers that appear in the abstract. If the abstract states no number, do not invent one.
-
-"whyRead": one sentence stating the objective.
-"lede": two complete sentences for the card, objective then result. About 40–70 words.
-"takeaway": one sentence stating what the paper shows. Not a repeat of paragraph 1.
-
-Accuracy rules:
-- If the abstract does not say it, leave it out. Do not infer benchmarks, ablations, or limitations.
-- Do not quote the abstract. Rewrite it.
-- Do not repeat a sentence across paragraphs.
-- Every sentence must finish. Never end on an ellipsis or a chopped clause.
-- No venue name-dropping, no "this paper explores", no "the authors propose a novel".`,
-	articles: `Desk: article.
-Argument + mechanism + stakes. ≥4 paragraphs. Card lede: 40–65 words.`,
+	hn: `Desk: Hacker News. Lead with the technical claim or result. If the notes include discussion, fold in the sharpest objection naturally.`,
+	x: `Desk: X. A short post. Say what was claimed or shipped and the number that matters. Keep it brief.`,
+	press: `Desk: tech press. Lead with what the company or product actually did. Stay factual and a little skeptical. No speculation about internal systems.`,
+	reddit: `Desk: Reddit. Lead with the idea or result people are discussing, in plain technical terms.`,
+	github: `Desk: GitHub repo. What it does, how it works if the notes say, and who would use it.`,
+	papers: `Desk: research paper. You have only the title and abstract. Paragraphs in this order:
+1. The problem and what the authors set out to do.
+2. The method, in concrete terms.
+3. What the paper shows, with only the numbers and comparisons in the abstract.
+Rewrite, do not quote. Never write "this paper explores" or "a novel approach".`,
+	articles: `Desk: article. Lead with the argument, then the evidence behind it.`,
 };
 
 type Draft = {
@@ -134,11 +99,11 @@ function statsFromMeta(meta: string) {
 
 function minutesFor(paragraphs: string[], takeaway: string) {
 	const words = [...paragraphs, takeaway].join(' ').split(/\s+/).filter(Boolean).length;
-	return Math.max(3, Math.min(4, Math.round(words / 160) || 3));
+	return Math.max(1, Math.ceil(words / 200));
 }
 
 const SLOP =
-	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article|PR)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note|Here is a summary|Privacy advocates are sounding|The broader implication|helps engineers (gauge|understand)|Understanding the .+ helps|What we can verify|Why it showed up here|ranking and relevance filters|listing description is thin|Skip the hype layer|desk fallback|Posted by @|claim stands or falls|If it touches your stack|Verify the concrete claim|check the original|open the post before/i;
+	/A closer look at|on the wire|live signal is thin|model was unavailable|This (post|tweet|thread|story|article|PR)|sounds like|reads as|delve|game-changer|in today's|source of truth|it's important to note|Here is a summary|Privacy advocates are sounding|The broader implication|helps engineers (gauge|understand)|Understanding the .+ helps|What we can verify|Why it showed up here|ranking and relevance filters|listing description is thin|Skip the hype layer|desk fallback|Posted by @|claim stands or falls|If it touches your stack|Verify the concrete claim|check the original|open the post before|underscores (how|the)|forces a reckoning|serves as a reminder|For (engineers|developers) and|in an era of/i;
 
 const MARKUP = /<!--|<\/[a-z][^>]*>|<[a-z][^>]{0,40}>/i;
 
@@ -171,13 +136,11 @@ function normalizeParagraphs(raw: unknown): string[] {
 }
 
 function minParagraphs(source: DigestSource) {
-	if (source === 'x' || source === 'papers') return 3;
-	return 4;
+	return source === 'x' ? 2 : 3;
 }
 
 function minWords(source: DigestSource) {
-	if (source === 'x' || source === 'papers') return 140;
-	return 280;
+	return source === 'x' ? 70 : 110;
 }
 
 function cacheVersion(source: DigestSource) {
@@ -353,21 +316,13 @@ async function writeCache(row: CacheRow) {
 }
 
 function buildUserPrompt(item: FeedItem, source: DigestSource) {
+	const notes = toPlainText(item.summary || '').slice(0, 3000);
 	return [
-		`PROMPT_VERSION: ${PROMPT_VERSION}`,
-		`Story id: ${item.id}`,
-		`Source desk: ${source}`,
-		`Source label: ${item.source}`,
-		`Title: ${item.title}`,
-		item.summary
-			? `Source notes (plain text already — stay faithful, do not echo markup):\n${toPlainText(item.summary)}`
-			: 'Source notes: title/meta only — do not invent details, numbers, or conclusions.',
-		item.meta ? `Signals: ${item.meta}` : '',
-		`URL (orientation only): ${item.href}`,
 		DESK_BRIEF[source],
-		source === 'papers'
-			? 'Three paragraphs only: objective, approach, result. Stay inside the abstract.'
-			: `Minimum ${minParagraphs(source)} proper paragraphs. End with a concrete takeaway. Author voice — not a summary bot.`,
+		`Source: ${item.source}`,
+		`Title: ${item.title}`,
+		notes ? `Source notes:\n${notes}` : 'Source notes: title only. Keep the note short and do not invent details.',
+		item.meta ? `Signals: ${item.meta}` : '',
 	]
 		.filter(Boolean)
 		.join('\n\n');
@@ -376,8 +331,8 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft | null> {
 	if (textBudgetExhausted) return null;
 
-	const maxTokens = source === 'x' ? 1200 : source === 'papers' ? 1400 : 2400;
-	const temperature = source === 'papers' ? 0.3 : 0.55;
+	const maxTokens = source === 'x' ? 600 : 900;
+	const temperature = source === 'papers' ? 0.3 : 0.6;
 	let salvage: Draft | null = null;
 	try {
 		const raw = await chatCompletion(
@@ -390,12 +345,11 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 		const parsed = extractJson(raw);
 		if (parsed && isUsableDraft(parsed, item.title, source)) salvage = parsed;
 		if (parsed && !isWeakDraft(parsed, item.title, source)) return parsed;
+		if (salvage) return salvage;
 
-		console.warn(`[enrich] weak draft for ${item.id}; retrying once`);
+		console.warn(`[enrich] unusable draft for ${item.id}; retrying once`);
 		const retryNote =
-			source === 'papers'
-				? 'Previous draft was inaccurate, repetitive, or padded. Rewrite from the abstract only. Three paragraphs: objective, method, then what the paper shows. No ellipsis. No invented numbers or datasets.'
-				: `Previous draft was too short, too meta, or AI-slop. Rewrite as a dense 3–4 minute technical note with ≥${minParagraphs(source)} real paragraphs and a sharp takeaway. Lead with the mechanism.`;
+			'The last draft broke the rules. Rewrite in plain words: three paragraphs of 2 or 3 sentences, facts from the notes only, no moralizing wrap-up.';
 		const retry = await chatCompletion(
 			[
 				{ role: 'system', content: SHARED_RULES },
@@ -404,7 +358,7 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 					content: `${buildUserPrompt(item, source)}\n\n${retryNote}`,
 				},
 			],
-			{ maxTokens, temperature: source === 'papers' ? 0.2 : 0.65, json: true },
+			{ maxTokens, temperature: source === 'papers' ? 0.2 : 0.5, json: true },
 		);
 		const second = extractJson(retry);
 		if (second && !isWeakDraft(second, item.title, source)) return second;
