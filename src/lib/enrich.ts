@@ -16,22 +16,24 @@ import {
 } from './feeds';
 
 /** Bump to invalidate prior prompt caches. */
-const PROMPT_VERSION = 'v9-natural';
-const PAPER_PROMPT_VERSION = 'v9-paper';
+const PROMPT_VERSION = 'v10-natural';
+const PAPER_PROMPT_VERSION = 'v10-paper';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache/stories');
 const TEXT_CONCURRENCY = 1;
 
 const SHARED_RULES = `You write short technical notes for Prodigy, a daily digest read by young engineers and researchers.
 
-Write like a senior engineer telling a friend what they just read: plain words, specific facts, no performance. The reader should learn the thing in under two minutes and want to keep reading.
+Write like a senior engineer telling a friend what they just read: plain words, specific facts, no performance. It is a 3 to 4 minute read, 450 to 650 words, and every paragraph should earn its place.
 
 How a good note reads:
 - Paragraph 1 states what happened and the most striking fact or number, in the first sentence. No scene-setting.
-- Paragraph 2 explains how it works or why it happened, using only what the source says.
-- Paragraph 3 says what changes for someone building software or doing research, and names one real limit or open question if the source gives one.
-- Each paragraph is 2 or 3 sentences. Short sentences are fine. Mix lengths.
+- Paragraphs 2 and 3 explain how it works or why it happened: the mechanism, the design choices, the numbers. Use only what the source says, and go deep on it rather than wide.
+- Paragraph 4 says what changes for someone building software or doing research.
+- An optional paragraph 5 covers a real limit, cost, or open question, only if the source gives one.
+- Each paragraph is 3 to 5 sentences. Mix short and long sentences.
 - Prefer concrete nouns and verbs over abstractions. "Cuts output tokens by 40 percent" beats "improves efficiency significantly".
+- If the source is thin, explain the concepts it names in more depth. Do not fill space with opinions or wrap-ups.
 
 Accuracy comes first:
 - Use only facts in the source notes. If the source does not explain the mechanism, do not describe one. Say less instead.
@@ -49,7 +51,7 @@ Fields:
 - "headline": a complete title, 8 to 14 words. Do not end on a preposition or article.
 - "whyRead": one sentence on what the reader will learn.
 - "lede": the card blurb, 1 or 2 sentences with the key fact.
-- "paragraphs": exactly 3, as described above.
+- "paragraphs": 4 or 5, as described above.
 - "takeaway": one plain sentence, under 25 words, stating the lesson. Not a summary of paragraph 1.
 
 Return ONLY valid JSON (no markdown fences):
@@ -57,7 +59,7 @@ Return ONLY valid JSON (no markdown fences):
   "headline": "finished title",
   "lede": "card blurb",
   "whyRead": "one sentence subhead",
-  "paragraphs": ["para1", "para2", "para3"],
+  "paragraphs": ["para1", "para2", "para3", "para4"],
   "takeaway": "concrete takeaway"
 }`;
 
@@ -69,8 +71,9 @@ const DESK_BRIEF: Record<DigestSource, string> = {
 	github: `Desk: GitHub repo. What it does, how it works if the notes say, and who would use it.`,
 	papers: `Desk: research paper. You have only the title and abstract. Paragraphs in this order:
 1. The problem and what the authors set out to do.
-2. The method, in concrete terms.
-3. What the paper shows, with only the numbers and comparisons in the abstract.
+2 and 3. The method in concrete terms, and the ideas it builds on, explained for a technical reader.
+4. What the paper shows, with only the numbers and comparisons in the abstract.
+5 (optional). What it would change in practice, or what the abstract leaves open.
 Rewrite, do not quote. Never write "this paper explores" or "a novel approach".`,
 	articles: `Desk: article. Lead with the argument, then the evidence behind it.`,
 };
@@ -99,7 +102,7 @@ function statsFromMeta(meta: string) {
 
 function minutesFor(paragraphs: string[], takeaway: string) {
 	const words = [...paragraphs, takeaway].join(' ').split(/\s+/).filter(Boolean).length;
-	return Math.max(1, Math.ceil(words / 200));
+	return Math.max(3, Math.min(4, Math.round(words / 160) || 3));
 }
 
 const SLOP =
@@ -136,11 +139,11 @@ function normalizeParagraphs(raw: unknown): string[] {
 }
 
 function minParagraphs(source: DigestSource) {
-	return source === 'x' ? 2 : 3;
+	return source === 'x' ? 2 : 4;
 }
 
 function minWords(source: DigestSource) {
-	return source === 'x' ? 70 : 110;
+	return source === 'x' ? 70 : 380;
 }
 
 function cacheVersion(source: DigestSource) {
@@ -187,6 +190,7 @@ function isUsableDraft(draft: Draft | null | undefined, title: string, source?: 
 	}
 	if (source === 'x' && draft.headline && !isCompleteTitle(draft.headline)) return false;
 	if (source === 'papers' && paperDraftBroken(draft)) return false;
+	if (source !== 'x' && [...draft.paragraphs, draft.takeaway].join(' ').split(/\s+/).length < 200) return false;
 	const minLen = source === 'x' ? 40 : 60;
 	if (draft.paragraphs.some((paragraph) => paragraph.length < minLen)) return false;
 	return true;
@@ -331,7 +335,7 @@ function buildUserPrompt(item: FeedItem, source: DigestSource) {
 async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Draft | null> {
 	if (textBudgetExhausted) return null;
 
-	const maxTokens = source === 'x' ? 600 : 900;
+	const maxTokens = source === 'x' ? 600 : 1500;
 	const temperature = source === 'papers' ? 0.3 : 0.6;
 	let salvage: Draft | null = null;
 	try {
@@ -349,7 +353,7 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 
 		console.warn(`[enrich] unusable draft for ${item.id}; retrying once`);
 		const retryNote =
-			'The last draft broke the rules. Rewrite in plain words: three paragraphs of 2 or 3 sentences, facts from the notes only, no moralizing wrap-up.';
+			'The last draft broke the rules. Rewrite in plain words: 4 or 5 paragraphs, 450 to 650 words, facts from the notes only, no moralizing wrap-up.';
 		const retry = await chatCompletion(
 			[
 				{ role: 'system', content: SHARED_RULES },
