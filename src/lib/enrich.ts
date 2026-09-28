@@ -372,9 +372,9 @@ async function draftFromModel(item: FeedItem, source: DigestSource): Promise<Dra
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[enrich] text failed for ${item.id}:`, message);
-		if (/429|tokens per day|TPD|rate limit/i.test(message)) {
+		if (/tokens per day|TPD/i.test(message)) {
 			textBudgetExhausted = true;
-			console.warn('[enrich] Groq budget exhausted — using desk drafts for remaining items');
+			console.warn('[enrich] Groq daily budget exhausted — using desk drafts for remaining items');
 		}
 		return salvage;
 	}
@@ -548,13 +548,13 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	take(reddit, 'reddit', 10 - digestPicks.length, digestPicks);
 
 	const jobs: Sourced[] = [
-		...digestPicks,
-		...x.map((item) => ({ item, source: 'x' as const })),
 		...hn.map((item) => ({ item, source: 'hn' as const })),
+		...papers.map((item) => ({ item, source: 'papers' as const })),
+		...github.map((item) => ({ item, source: 'github' as const })),
+		...digestPicks,
 		...press.map((item) => ({ item, source: 'press' as const })),
 		...reddit.map((item) => ({ item, source: 'reddit' as const })),
-		...github.map((item) => ({ item, source: 'github' as const })),
-		...papers.map((item) => ({ item, source: 'papers' as const })),
+		...x.map((item) => ({ item, source: 'x' as const })),
 	];
 
 	const unique = new Map<string, Sourced>();
@@ -588,7 +588,7 @@ export async function runEnrichment(): Promise<StoryCatalog> {
 	await mkdir(path.dirname(CATALOG_PATH), { recursive: true });
 	await writeFile(CATALOG_PATH, JSON.stringify(catalog, null, 2));
 	console.log(
-		`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length}; x ${catalog.x.length}; github ${catalog.github.length}; papers ${catalog.papers.length}; press ${catalog.press.length}; reddit ${catalog.reddit.length})`,
+		`[enrich] wrote ${enriched.length} stories (digest ${catalog.digest.length}; hn ${catalog.hn.length}; x ${catalog.x.length}; github ${catalog.github.length}; papers ${catalog.papers.length}; press ${catalog.press.length}; reddit ${catalog.reddit.length})`,
 	);
 	return catalog;
 }

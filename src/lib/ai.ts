@@ -30,6 +30,15 @@ function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function retryWaitMs(detail: string, attempt: number) {
+	const match = /try again in\s+(?:(\d+)\s*m)?\s*(?:(\d+(?:\.\d+)?)\s*s)?/i.exec(detail);
+	const minutes = Number(match?.[1] || 0);
+	const seconds = Number(match?.[2] || 0);
+	if (minutes || seconds) return Math.ceil((minutes * 60 + seconds) * 1000) + 1_500;
+	if (/tokens per minute|tpm/i.test(detail)) return 20_000 * (attempt + 1);
+	return 6_000 * (attempt + 1);
+}
+
 async function throttleText() {
 	const wait = lastTextAt + TEXT_GAP_MS - Date.now();
 	if (wait > 0) await sleep(wait);
@@ -70,7 +79,7 @@ export async function chatCompletion(
 	let lastError: Error | null = null;
 
 	for (const model of models) {
-		for (let attempt = 0; attempt < 3; attempt++) {
+		for (let attempt = 0; attempt < 4; attempt++) {
 			await throttleText();
 			const useJson = wantJson && attempt === 0;
 			const body: Record<string, unknown> = {
@@ -80,6 +89,8 @@ export async function chatCompletion(
 				temperature: opts.temperature ?? 0.55,
 			};
 			if (useJson) body.response_format = { type: 'json_object' };
+			// gpt-oss spends the token budget on hidden reasoning. Keep that short.
+			if (/gpt-oss/i.test(model)) body.reasoning_effort = 'low';
 
 			const response = await fetch(GROQ_CHAT_URL, {
 				method: 'POST',
@@ -98,9 +109,10 @@ export async function chatCompletion(
 
 			if (response.status === 429) {
 				const detail = await response.text().catch(() => '');
-				const retry = /try again in ([\d.]+)s/i.exec(detail);
-				const waitMs = retry ? Math.ceil(Number(retry[1]) * 1000) + 750 : 5_000 * (attempt + 1);
+				const waitMs = retryWaitMs(detail, attempt);
 				lastError = new Error(`Groq 429 (${model}): ${detail.slice(0, 220)}`);
+				// A daily cap will not clear inside this build. A per-minute cap will.
+				if (/tokens per day|tpd/i.test(detail)) throw lastError;
 				await sleep(waitMs);
 				continue;
 			}

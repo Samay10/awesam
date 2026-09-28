@@ -236,7 +236,7 @@ function parseRssItems(xml: string) {
 	return [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)].map((match) => match[0]);
 }
 
-type HnStory = {
+type HnItem = {
 	id: number;
 	title?: string;
 	url?: string;
@@ -245,7 +245,24 @@ type HnStory = {
 	descendants?: number;
 	type?: string;
 	text?: string;
+	kids?: number[];
 };
+
+async function hnDiscussion(story: HnItem) {
+	const own = story.text ? toPlainText(story.text).replace(/\s+/g, ' ').trim() : '';
+	const kids = (story.kids ?? []).slice(0, 6);
+	const comments = (
+		await Promise.all(
+			kids.map((id) => fetchJson<HnItem>(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)),
+		)
+	)
+		.map((comment) => (comment?.text ? toPlainText(comment.text).replace(/\s+/g, ' ').trim() : ''))
+		.filter((text) => text.length > 40)
+		.slice(0, 5)
+		.map((text) => clip(text, 320));
+
+	return [own ? clip(own, 900) : '', ...comments].filter(Boolean).join('\n').slice(0, 1800);
+}
 
 /** Live “best of HN” via Firebase REST — https://github.com/HackerNews/API */
 export async function fetchHackerNews(limit = 12): Promise<FeedItem[]> {
@@ -255,8 +272,8 @@ export async function fetchHackerNews(limit = 12): Promise<FeedItem[]> {
 	// Pull a wider window so we can prefer systems/AI-relevant titles while staying in beststories order.
 	const window = Math.min(ids.length, Math.max(limit * 4, 40));
 	const stories = (
-		await Promise.all(ids.slice(0, window).map((id) => fetchJson<HnStory>(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)))
-	).filter((story): story is HnStory => Boolean(story?.title && story.type === 'story' && !story.url?.includes('ycombinator.com/jobs')));
+		await Promise.all(ids.slice(0, window).map((id) => fetchJson<HnItem>(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)))
+	).filter((story): story is HnItem => Boolean(story?.title && story.type === 'story' && !story.url?.includes('ycombinator.com/jobs')));
 
 	const ranked = stories
 		.map((story, index) => {
@@ -265,22 +282,23 @@ export async function fetchHackerNews(limit = 12): Promise<FeedItem[]> {
 			return { story, index, relevant };
 		})
 		.sort((a, b) => Number(b.relevant) - Number(a.relevant) || a.index - b.index)
-		.slice(0, limit)
-		.map(({ story }) => {
+		.slice(0, limit);
+
+	return Promise.all(
+		ranked.map(async ({ story }) => {
 			const title = story.title ?? '';
-			const summary = story.text ? clean(story.text.replace(/<[^>]+>/g, ' '), 200) : undefined;
+			const summary = await hnDiscussion(story);
 			return {
 				id: `hn-${story.id}`,
 				title,
 				href: story.url || `https://news.ycombinator.com/item?id=${story.id}`,
 				source: 'Hacker News',
 				meta: `${story.score ?? 0} pts · ${story.by ?? 'anon'} · ${story.descendants ?? 0} comments`,
-				summary,
+				summary: summary || undefined,
 				score: story.score ?? 0,
 			} satisfies FeedItem;
-		});
-
-	return ranked;
+		}),
+	);
 }
 
 type GithubRepo = {
